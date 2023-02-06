@@ -1,2 +1,3 @@
-# GHOST
-The Ghost repo - Global Harmonisation Of Scanner performance Testing. Or just the phantom repo
+# GHOST - Global Harmonisation Of Scanner performance Testing
+
+Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phantom).
