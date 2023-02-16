@@ -2,7 +2,10 @@
 
 Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phantom).
 
-Features to be implemented
+## Useful features
+- Parse and plot information in the reference measurement sheet for the phantom ([Notebook example](phantom_characteristics.ipynb))
+
+## Features to be implemented
 - [ ] A standard geometrically accurate template with everything segmented
 - [ ] Automatically resample the phantom to the acquired resolution of the hyperfine scan
 - [ ] Automatic registration and transformation of labels to hyperfine image
