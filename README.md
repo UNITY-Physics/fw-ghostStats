@@ -2,6 +2,17 @@
 
 Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phantom).
 
+## Install
+This is a simple pip package which you can install with
+```
+python -m pip install -e .
+```
+
+## Conventions
+- Analysis is performed in Python (version 3)
+- Images are treated as `antspyx` image objects. This simplifies working with transformations, image arrays while maintaining information about geometry etc.
+
+
 ## Useful features
 - Parse and plot information in the reference measurement sheet for the phantom ([Notebook example](phantom_characteristics.ipynb))
 
