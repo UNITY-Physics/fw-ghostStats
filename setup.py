@@ -11,7 +11,7 @@ with open('requirements.txt', 'r') as fh:
 setuptools.setup(
     name="ghost",
     version="0.1",
-    author="Emil Ljungberg",
+    author="Emil Ljungberg, Petter Clemensson",
     author_email="ljungberg.emil@gmail.com",
     description="Python code to UNITY phantom data",
     long_description=long_description,
@@ -25,11 +25,9 @@ setuptools.setup(
     python_requires=">=3.6",
     py_modules=['ghost'],
     install_requires=requirements,
-    # entry_points={
-    #     'console_scripts': [
-    #         'rrdf2bart=rrdftools.main_rrdf2bart:main',
-    #         'rrdf2riesling=rrdftools.main_rrdf2riesling:main',
-    #         'bart2nii=rrdftools.main_bart2nii:main',
-    #     ]
-    # }
+    entry_points={
+        'console_scripts': [
+            'ghost_download_phantom=ghost.phantom:download_phantom_data'
+        ]
+    }
 )
