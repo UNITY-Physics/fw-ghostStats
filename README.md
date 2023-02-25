@@ -8,6 +8,17 @@ This is a simple pip package which you can install with
 python -m pip install -e .
 ```
 
+To download phantom reference data run
+```
+ghost_download_phantom
+```
+or in a python environment
+```
+from ghost.download_data import download_phantom
+
+download_phantom()
+```
+
 ## Conventions
 - Analysis is performed in Python (version 3)
 - Images are treated as `antspyx` image objects. This simplifies working with transformations, image arrays while maintaining information about geometry etc.

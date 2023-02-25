@@ -1,0 +1,28 @@
+from ghost import GHOSTDIR
+import subprocess as sp
+import os
+
+def download_phantom():
+    files = [{'fname':'T1_phantom.nii.gz',
+            'link':'https://www.dropbox.com/s/37ua5rpiv57soz1/T1_phantom.nii.gz?dl=0'}, 
+            {'fname':'T2_phantom.nii.gz',
+            'link':'https://www.dropbox.com/s/5v13loxdrkgrlv1/T2_phantom.nii.gz?dl=0'}]
+
+    # Check if folder exists
+    dl_path = f"{GHOSTDIR}/../data"
+    if not os.path.exists(dl_path):
+        os.mkdir(dl_path)
+        print(f"Created folder: {dl_path}")
+
+    for f in files:
+        file_path = f"{dl_path}/{f['fname']}"
+        if not os.path.exists(file_path):
+            dl_link = f['link']
+            print('Downloading %s'%(f['fname']))
+            cmd = f'wget -q -O {file_path} "{dl_link}"'
+            out = sp.call(cmd, shell=True)
+            print(f'Done. File saved to {file_path}')
+
+        else:
+            print("%s is already downloaded. Skipping"%f['fname'])
+        
