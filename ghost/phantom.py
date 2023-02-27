@@ -1,4 +1,4 @@
-from ghost import GHOSTDIR
+from . import GHOSTDIR
 import subprocess as sp
 import os
 
@@ -10,7 +10,7 @@ def get_phantom_nii(weighting='T1'):
     else:
         return ValueError('Not a valid weighting. (Valid: T1, T2)')
     
-def download_phantom_data():
+def download_ref_data():
     files = [{'fname':'T1_phantom.nii.gz',
             'link':'https://www.dropbox.com/s/37ua5rpiv57soz1/T1_phantom.nii.gz?dl=0'},
             {'fname':'T2_phantom.nii.gz',
