@@ -14,9 +14,9 @@ ghost_download_phantom
 ```
 or in a python environment
 ```
-from ghost.download_data import download_phantom
+from ghost.phantom import download_ref_data
 
-download_phantom()
+download_ref_data()
 ```
 
 ## Conventions
