@@ -1,4 +1,4 @@
-from . import GHOSTDIR
+from ghost import GHOSTDIR
 import subprocess as sp
 import os
 
@@ -12,12 +12,21 @@ def get_phantom_nii(weighting='T1'):
     
 def download_phantom_data():
     files = [{'fname':'T1_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/37ua5rpiv57soz1/T1_phantom.nii.gz?dl=0'}, 
+            'link':'https://www.dropbox.com/s/37ua5rpiv57soz1/T1_phantom.nii.gz?dl=0'},
             {'fname':'T2_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/5v13loxdrkgrlv1/T2_phantom.nii.gz?dl=0'}]
+            'link':'https://www.dropbox.com/s/5v13loxdrkgrlv1/T2_phantom.nii.gz?dl=0'},
+            {'fname':'ADC_vials.nii.gz',
+            'link':'https://www.dropbox.com/s/yuf0sl9uz1bkqu5/ADC_vials.nii.gz?dl=0'},
+            {'fname':'LC_vials.nii.gz',
+            'link':'https://www.dropbox.com/s/1c2mjugtyb04xjp/LC_vials.nii.gz?dl=0'},
+            {'fname':'T2_vials.nii.gz',
+            'link':'https://www.dropbox.com/s/vkkwd02f8dz2nqu/T2_vials.nii.gz?dl=0'},
+            {'fname':'T1_vials.nii.gz',
+            'link':'https://www.dropbox.com/s/0ai6z3cg94xcvn8/T1_vials.nii.gz?dl=0'}
+            ]
 
     # Check if folder exists
-    dl_path = f"{GHOSTDIR}/../data"
+    dl_path = f"{GHOSTDIR}/data"
     if not os.path.exists(dl_path):
         os.mkdir(dl_path)
         print(f"Created folder: {dl_path}")
