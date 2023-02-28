@@ -218,7 +218,11 @@ def download_ref_data():
             {'fname':'T2_vials.nii.gz',
             'link':'https://www.dropbox.com/s/vkkwd02f8dz2nqu/T2_vials.nii.gz?dl=0'},
             {'fname':'T1_vials.nii.gz',
-            'link':'https://www.dropbox.com/s/0ai6z3cg94xcvn8/T1_vials.nii.gz?dl=0'}
+            'link':'https://www.dropbox.com/s/0ai6z3cg94xcvn8/T1_vials.nii.gz?dl=0'},
+            {'fname':'fiducials.nii.gz',
+            'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=0'},
+            {'fname':'wedges.nii.gz',
+            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=0'}
             ]
 
     # Check if folder exists
