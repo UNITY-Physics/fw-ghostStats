@@ -239,8 +239,63 @@ def download_ref_data():
         else:
             print("%s is already downloaded. Skipping"%f['fname'])
 
-def reg_to_phantom():
-    pass
+def get_file_path_to_seg(seg='T1'):
+    """Get filename of segmentation image
+
+    Args:
+        seg (str, optional): Which segmentation (T1, T2, ADC, LC, Fiducials, Wedges). Defaults to 'T1'.
+
+    Raises:
+        ValueError: Wrong segmentation
+
+    Returns:
+        str: Full file path
+    """
+    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
+    if seg not in avail_seg:
+        raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
+    else:
+        if seg == 'fiducials' or seg == 'wedges':
+            return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
+        else:
+            return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
+
+def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
+    """Get transformation object from target image to reference image
+    
+    Parameters
+    ----------
+    target_img : antsImage
+        The target image. Probably from the swoop.
+    
+    ref_img : antsImage
+        The reference image.
+
+    xfm_type : str
+        The type of transformation to use. Default is 'Affine'. See ANTsPy documentation (https://antspy.readthedocs.io/en/latest/registration.html) for other options.
+
+    Returns
+    -------
+    antsTransform
+        The transformation object.
+    """
+    reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
+    return reg['fwdtransforms']
+
+def save_xfm(xfm, out_path):
+    """Save the transformation object to a file
+    
+    Parameters
+    ----------
+    xfm : antsTransform
+        The transformation object.
+    
+    out_path : str
+        The path to save the transformation object to.
+    """
+    ants.save_transform(xfm, out_path)
+
+
 
 def process_all():
     # Shouldn' have any specific processing, just call other scripts
