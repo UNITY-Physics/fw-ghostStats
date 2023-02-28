@@ -276,7 +276,8 @@ def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
         The reference image.
 
     xfm_type : str
-        The type of transformation to use. Default is 'Affine'. See ANTsPy documentation (https://antspy.readthedocs.io/en/latest/registration.html) for other options.
+        The type of transformation to use. Default is 'Affine'. 
+        See ANTsPy documentation for other options (https://antspy.readthedocs.io/en/latest/registration.html).
 
     Returns
     -------
