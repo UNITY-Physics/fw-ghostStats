@@ -171,7 +171,7 @@ def get_phantom_nii(weighting='T1'):
     """Get filename of phantom image
 
     Args:
-        weighting (str, optional): Which weighting (T1 or T2). Defaults to 'T1'.
+        weighting (str, optional): Which weighting (T1 or T2). Default is 'T1'.
 
     Raises:
         ValueError: Wrong weighting
@@ -189,7 +189,7 @@ def get_seg_nii(seg='T1'):
     """Get filename of segmentation image
 
     Args:
-        seg (str, optional): Which segmentation (T1, T2, ADC, LC). Defaults to 'T1'.
+        seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
 
     Raises:
         ValueError: Wrong segmentation
@@ -197,12 +197,17 @@ def get_seg_nii(seg='T1'):
     Returns:
         str: Full file path
     """
-    avail_seg = ['T1', 'T2', 'ADC', 'LC']
+    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'wedges', 'fiducials']
     if seg not in avail_seg:
         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
     else:
-        return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
-
+        if seg == 'T1' or seg == 'T2' or seg == 'ADC':
+            return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
+        elif seg == 'fiducials' or seg == 'wedges':
+            return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
+        elif seg == 'LC':
+            return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
+        
 def download_ref_data():
     """
     Downloads reference data for the phantom from Dropbox
@@ -243,36 +248,16 @@ def download_ref_data():
         else:
             print("%s is already downloaded. Skipping"%f['fname'])
 
-def get_file_path_to_seg(seg='T1'):
-    """Get filename of segmentation image
-
-    Args:
-        seg (str, optional): Which segmentation (T1, T2, ADC, LC, Fiducials, Wedges). Defaults to 'T1'.
-
-    Raises:
-        ValueError: Wrong segmentation
-
-    Returns:
-        str: Full file path
-    """
-    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
-    if seg not in avail_seg:
-        raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
-    else:
-        if seg == 'fiducials' or seg == 'wedges':
-            return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
-        else:
-            return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
 
 def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
     """Get transformation object from target image to reference image
     
     Parameters
     ----------
-    target_img : antsImage
+    target_img : ANTsImage
         The target image. Probably from the swoop.
     
-    ref_img : antsImage
+    ref_img : ANTsImage
         The reference image.
 
     xfm_type : str
@@ -281,25 +266,47 @@ def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
 
     Returns
     -------
-    antsTransform
+    ANTsTransform
         The transformation object.
     """
     reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
     return reg['fwdtransforms']
 
-def save_xfm(xfm, out_path):
+def save_xfm(xfm, filename):
     """Save the transformation object to a file
     
     Parameters
     ----------
-    xfm : antsTransform
+    xfm : ANTsTransform
         The transformation object.
     
-    out_path : str
-        The path to save the transformation object to.
+    filename : str
+        Filename of transform (file extension is ".mat" for affine transforms).
     """
-    ants.save_transform(xfm, out_path)
+    ants.write_transform(xfm, filename)
 
+# def get_file_path_to_seg(seg='T1'):
+#     """Get filename of segmentation image
+
+#     Args:
+#         seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+
+#     Raises:
+#         ValueError: Wrong segmentation
+
+#     Returns:
+#         str: Full file path
+#     """
+#     avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
+#     if seg not in avail_seg:
+#         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
+#     else:
+#         if seg == 'T1' or seg == 'T2' or seg == 'ADC':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
+#         elif seg == 'fiducials' or seg == 'wedges':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
+#         elif seg == 'LC':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
 
 
 def process_all():
