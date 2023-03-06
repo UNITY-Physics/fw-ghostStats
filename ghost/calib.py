@@ -115,11 +115,15 @@ class Calibration():
             >>> calib = Calibration('calibration.xls')
             >>> calib.get_T2_vals(20)
         """
-        return self.__get_vals(temp, mimics, 'T1')
+        return self.__get_vals(temp, mimics, 'T2')
 
 
     def get_ADC_vals(self, temp):
         pass
 
-    def get_LC_vals(self):
-        pass
+    def get_thermometer_vals(self):
+        """Get Measured Transition Temperature (C) values
+        
+        Returns:
+            list: List of Measured Transition Temperature (C) values"""
+        return self.data.get('CMRI_LC').get('Measured Transition Temperature (C)')
