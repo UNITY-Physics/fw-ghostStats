@@ -1,0 +1,166 @@
+{
+    "Manufacturer": "Hyperfine",
+    "ManufacturersModelName": "Swoop",
+    "InstitutionName": "Lund MR Hyperfine1",
+	"InstitutionAddress": "LBIC",
+    "DeviceSerialNumber": "HG20530032",
+    "Modality": "MR",
+    "MagneticFieldStrength": 0.064,
+    "descriptions": [
+        {
+            "dataType": "anat",
+            "modalityLabel": "localizer",
+            "criteria": {
+                "SeriesDescription": "Localizer (coronal)"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "fisp",
+            "criteria": {
+                "SeriesDescription": "FISP-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2std",
+            "customLabels": "rec-axi",
+            "criteria": {
+                "SeriesDescription": "T2 (AXI)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2fast",
+            "customLabels": "rec-axi",
+            "criteria": {
+                "SeriesDescription": "T2 (AXI, Fast)"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2std",
+            "customLabels": "rec-cor",
+            "criteria": {
+                "SeriesDescription": "T2 (COR)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2fast",
+            "customLabels": "rec-cor",
+            "criteria": {
+                "SeriesDescription": "T2 (COR, Fast)"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2std",
+            "customLabels": "rec-sag",
+            "criteria": {
+                "SeriesDescription": "T2 (SAG)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T2fast",
+            "customLabels": "rec-sag",
+            "criteria": {
+                "SeriesDescription": "T2 (SAG, Fast)"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1gw",
+            "customLabels": "rec-axi",
+            "criteria": {
+                "SeriesDescription": "T1 (AXI)- Gray/White Contrast"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1std",
+            "customLabels": "rec-axi",
+            "criteria": {
+                "SeriesDescription": "T1 (AXI)- Standard"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1gw",
+            "customLabels": "rec-cor",
+            "criteria": {
+                "SeriesDescription": "T1 (COR)- Gray/White Contrast"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1std",
+            "customLabels": "rec-cor",
+            "criteria": {
+                "SeriesDescription": "T1 (COR)- Standard"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1gw",
+            "customLabels": "rec-sag",
+            "criteria": {
+                "SeriesDescription": "T1 (SAG)- Gray/White Contrast"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "T1std",
+            "customLabels": "rec-sag",
+            "criteria": {
+                "SeriesDescription": "T1 (SAG)- Standard"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "flair",
+            "customLabels": "rec-axi",
+            "criteria": {
+                "SeriesDescription": "FLAIR (AXI)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "flair",
+            "customLabels": "rec-cor",
+            "criteria": {
+                "SeriesDescription": "FLAIR (COR)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "anat",
+            "modalityLabel": "flair",
+            "customLabels": "rec-sag",
+            "criteria": {
+                "SeriesDescription": "FLAIR (SAG)-NOT FOR DIAGNOSTIC USE"
+            }
+        },
+        {
+            "dataType": "dwi",
+            "modalityLabel": "b0",
+            "criteria": {
+                "SeriesDescription": "DWI b=0"
+            }
+        },
+        {
+            "dataType": "dwi",
+            "modalityLabel": "b900",
+            "criteria": {
+                "SeriesDescription": "DWI b=900"
+            }
+        },
+        {
+            "dataType": "dwi",
+            "modalityLabel": "adc",
+            "criteria": {
+                "SeriesDescription": "ADC"
+            }
+        }
+    ]
+}
