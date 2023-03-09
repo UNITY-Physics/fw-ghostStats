@@ -255,20 +255,19 @@ def download_ref_data():
         else:
             print("%s is already downloaded. Skipping"%f['fname'])
 
-
-def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
+def reg_to_phantom(target_img, phantom_weighting='T1', xfm_type='Affine'):
     """Get transformation object from target image to reference image
     
     Parameters
     ----------
-    target_img : ANTsImage
+    target_img : antsImage
         The target image. Probably from the swoop.
     
-    ref_img : ANTsImage
-        The reference image.
+    phantom_weighting : str
+        Which weighting (T1 or T2). Default is 'T1'.
 
     xfm_type : str
-        The type of transformation to use. Default is 'Affine'. 
+        The type of transformation to use. Default is 'Affine'.
         See ANTsPy documentation for other options (https://antspy.readthedocs.io/en/latest/registration.html).
 
     Returns
@@ -276,8 +275,42 @@ def reg_to_phantom(target_img, ref_img, xfm_type='Affine'):
     ANTsTransform
         The transformation object.
     """
+    ref_img = ants.image_read(get_phantom_nii(phantom_weighting))
     reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
     return reg['fwdtransforms']
+
+def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
+    """Warp any segmentation to target image
+    
+    Parameters
+    ----------
+    target_img : ANTsImage
+        The reference image.
+    
+    xfm : ANTsTransform
+        The transformation object.
+
+    weighting : str
+        Which weighting (T1 or T2).
+    
+    seg : str
+        Which segmentation to use (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+    
+    Returns
+    -------
+    ANTsImage
+        The warped segmentation.
+    """
+    if xfm is None and weighting is None:
+        raise ValueError('Either xfm or weighting must be provided')
+    elif xfm is not None and weighting is not None:
+        raise ValueError('xfm and weighting cannot both be provided')
+    elif xfm is None and weighting is not None:
+        xfm = reg_to_phantom(target_img, phantom_weighting=weighting, xfm_type='Affine')
+
+    seg = ants.image_read(get_seg_nii(seg))
+    seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, whichtoinvert=[1], transformlist=xfm, interpolator='genericLabel')
+    return seg_warp
 
 def save_xfm(xfm, filename):
     """Save the transformation object to a file

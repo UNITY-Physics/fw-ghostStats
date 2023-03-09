@@ -2,7 +2,7 @@
 Everything that has to do with statistics
 """
 import ants
-from ghost.phantom import *
+from ghost.phantom import warp_seg
 
 def parse_rois(target_img, weighting, seg):
     """ Parses the ROI values from a segmentation image
