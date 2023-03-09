@@ -128,7 +128,14 @@ def calculate_slice_thickness_from_wedges(img_data, seg_data, sigma=3, wedge_ang
 
     if return_plot_data:
         # Make dictionary of variables needed to plot the slice thickness distributions
-        plot_data = {'lp': lp, 'lp_smooth': lp_smooth, 'lp_diff': lp_diff, 'lp_fit': lp_fit, 'x_axis': x_axis, 'seg1': seg1, 'seg2': seg2, 'slice': slice}
+        plot_data = {'lp': lp, 
+                     'lp_smooth': lp_smooth, 
+                     'lp_diff': lp_diff, 
+                     'lp_fit': lp_fit, 
+                     'x_axis': x_axis, 
+                     'seg1': seg1, 
+                     'seg2': seg2, 
+                     'slice': slice}
         return slice_thickness, w, theta, plot_data
     else:
         return slice_thickness, w, theta
