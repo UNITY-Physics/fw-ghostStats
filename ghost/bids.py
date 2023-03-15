@@ -10,7 +10,7 @@ from ghost.calib import *
 from ghost.phantom import *
 
 def get_mask_nii(seg, target_BIDSImageFile, layout):
-    """Retrieve or create specified segmentation mask for target image. 
+    """ Retrieve or create specified segmentation mask for target image. 
     All other functions depend on it since it is the smallest building block. 
     Perhaps it is useful as a standalone function for the cheeky scientist.
     
@@ -63,7 +63,7 @@ def get_mask_nii(seg, target_BIDSImageFile, layout):
         suffix = target_BIDSImageFile.entities['suffix']
         if suffix == 'T1w':
             ref = 'T1'
-        elif suffix == 'T2w' or suffix == 'dwi':
+        elif suffix == 'T2w' or suffix == 'FLAIR' or suffix == 'dwi':
             ref = 'T2'
         else:
             raise ValueError("The image type is not supported.")
@@ -188,8 +188,8 @@ def plot_mimics(target, layout, toFile=True):
     for i, target_bf in enumerate(target):
         for l in labels:
             mask_path = get_mask_nii(l, target_bf, layout)
-            masks[l] = ants.image_read(mask_path).numpy()
-        target_img = ants.image_read(target_bf.path)
+            masks[l] = ants.image_read(mask_path, reorient=True).numpy()
+        target_img = ants.image_read(target_bf.path, reorient=True)
 
         fig = plt.figure(figsize=(8, 3))
         plt.style.use("dark_background")
@@ -197,13 +197,31 @@ def plot_mimics(target, layout, toFile=True):
         for i, l in enumerate(labels):
             masks[l][masks[l] == 0] = np.nan
             fig.add_subplot(1,3,i+1)
+            # Check acquisition and reconstruction to determine which slices to plot
+            acq = target_bf.entities['acquisition']
+            suf = target_bf.entities['suffix']
             rec = target_bf.entities['reconstruction']
-            if rec == 'axi':
-                slices = [14, 19, 25]
-            elif rec == 'cor' or rec == 'sag':
-                slices = [43, 58, 79]
+            
+            if acq == 'adc': # suf == 'dwi' and rec == axi, always
+                slices = [12, 17, 23]
+            elif rec == 'axi':
+                    slices = [14, 18, 25]
+            # rec == 'cor' or rec == 'sag'
+            elif acq == 'gw' or acq == 'fast':
+                    slices = [43, 58, 79]                            
+            elif acq == 'std':
+                    if suf == 'FLAIR':
+                        slices = [40, 55, 74]
+                    elif suf == 'T1w':
+                        slices = [43, 58, 79]
+                    elif suf == 'T2w':
+                        if rec == 'cor':
+                            slices = [46, 62, 84]
+                        elif rec == 'sag':
+                            slices = [52, 68, 90]
+
             plt.imshow(target_img[:,:,slices[i]], cmap='gray', aspect=target_img.spacing[0]/target_img.spacing[1])
-            plt.imshow(masks[l][:,:,slices[i]], cmap=cmaps[i], alpha=0.6, aspect=target_img.spacing[0]/target_img.spacing[1])
+            plt.imshow(masks[l][:,:,slices[i]], cmap=cmaps[i], alpha=0.5, aspect=target_img.spacing[0]/target_img.spacing[1])
             plt.title(l)
             plt.axis('off')
         suptitle = fig.suptitle(target_bf.filename[:-7], fontsize=12)
@@ -220,7 +238,6 @@ def plot_mimics(target, layout, toFile=True):
         if not os.path.exists(img_dir):
             os.makedirs(img_dir)
 
-        print(img_path)
         plt.savefig(img_path)
 
 def plot_signal_ROI(target, seg, layout):
@@ -256,7 +273,7 @@ def plot_signal_ROI(target, seg, layout):
     # Get the stats for the target files and specified segmentation
     stats = bids2stats(target, seg, layout, toExcel=False)
 
-    # If the 'Run' column in stats contains more than 'NA' values, group runs together.
+    # If the 'Run' column in stats contains more than 'NA' values, group 'em together.
     if len(stats[stats['Run'] != 'NA']) > 0:
         # group by 'Session' and 'LabelValue' and compute the mean and standard deviation
         stats_grouped = stats.groupby(['Session', 'LabelValue', 'Acquisition'])
@@ -264,8 +281,6 @@ def plot_signal_ROI(target, seg, layout):
         stats_mean['Std'] = stats_grouped['Mean'].std()
         stats_mean['Run'] = '1,2,3'
         stats = stats_mean.reset_index()
-
-    print(f"Stats is: \n {stats}")
 
     fig = plt.figure(figsize=(10, 12))
     fig.add_subplot(2, 1, 1)
@@ -286,7 +301,6 @@ def plot_signal_ROI(target, seg, layout):
     for lv in stats['LabelValue'].unique():
         df = stats[stats['LabelValue'] == lv]
         df['Session'] = df['Session'].apply(convert_date)
-        
         plt.plot(df['Session'], df['Mean'], label=int(lv))
 
         if df['Acquisition'].item == 'adc':
