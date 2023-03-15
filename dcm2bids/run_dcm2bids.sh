@@ -1,15 +1,20 @@
 #!/bin/bash
 #
-# Script for converting dicom files to BIDS format
+# Script for converting dicom files to BIDS format and adding the temperature field to the sidecar files
+#
+# Requirements
+# - dcm2bids
+# - dcmtk
+# - jq
 #
 # Petter Clemensson
 # 
-# 2020-05-20
+# 2023-03-10
 
-DICOM_DIR="/Users/petter/Documents/Work/dcm2bids_second_try/DailyQA/raw_dicom_data/*"
-PARTICIPANT_ID="137-0004"
-CONFIG_FILE="/Users/petter/Documents/Work/dcm2bids_second_try/DailyQA/code/ghost_config.json"
-OUTPUT_DIR="/Users/petter/Documents/Work/dcm2bids_second_try/DailyQA/bids_data/"
+DICOM_DIR="path/to/project/directory/sourcedata/*"
+PARTICIPANT_ID="1370004"
+CONFIG_FILE="/path/to/project/directory/code/DailyQA_config.json"
+OUTPUT_DIR="path/to/project/directory/rawdata/"
 
 # loop over the dicom directories
 for DIR in $DICOM_DIR
@@ -24,10 +29,10 @@ do
   TEMP=$(dcmdump +P "0010,4000" $DICOM_FILE | cut -d'[' -f2 | cut -d']' -f1 | grep -oE "[0-9]{2}")
 
   # loop over the sidecar files in the output directory
-  for sidecar in $(find $OUTPUT_DIR -type f -name "*.json")
+  for SIDECAR in $(find $OUTPUT_DIR -type f -name "*.json")
     do
     # update the JSON sidecar file using jq
-    jq --arg temp $TEMP '.Temperature = $temp' "${sidecar}" > "${sidecar}.tmp"
-    mv "${sidecar}.tmp" "${sidecar}"
+    jq --arg temp $TEMP '.Temperature = $temp' "${SIDECAR}" > "${SIDECAR}.tmp"
+    mv "${SIDECAR}.tmp" "${SIDECAR}"
   done
 done

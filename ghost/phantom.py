@@ -291,7 +291,7 @@ def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
         The transformation object.
 
     weighting : str
-        Which weighting (T1 or T2).
+        Which phantom weighting to use (T1 or T2).
     
     seg : str
         Which segmentation to use (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.

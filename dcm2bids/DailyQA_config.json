@@ -6,158 +6,156 @@
     "DeviceSerialNumber": "HG20530032",
     "Modality": "MR",
     "MagneticFieldStrength": 0.064,
+    "dcm2niixOptions": "-b y -ba y -z y -f '%3s_%f_%p_%t' -x i",
     "descriptions": [
         {
             "dataType": "anat",
-            "modalityLabel": "localizer",
+            "modalityLabel": "PDw",
+            "customLabels": "acq-fisp",
             "criteria": {
-                "SeriesDescription": "Localizer (coronal)"
+                "SeriesDescription": "FISP*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "fisp",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-std_rec-axi",
             "criteria": {
-                "SeriesDescription": "FISP-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "T2 (AXI)*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T2std",
-            "customLabels": "rec-axi",
-            "criteria": {
-                "SeriesDescription": "T2 (AXI)-NOT FOR DIAGNOSTIC USE"
-            }
-        },
-        {
-            "dataType": "anat",
-            "modalityLabel": "T2fast",
-            "customLabels": "rec-axi",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-fast_rec-axi",
             "criteria": {
                 "SeriesDescription": "T2 (AXI, Fast)"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T2std",
-            "customLabels": "rec-cor",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-std_rec-cor",
             "criteria": {
-                "SeriesDescription": "T2 (COR)-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "T2 (COR)*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T2fast",
-            "customLabels": "rec-cor",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-fast_rec-cor",
             "criteria": {
                 "SeriesDescription": "T2 (COR, Fast)"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T2std",
-            "customLabels": "rec-sag",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-std_rec-sag",
             "criteria": {
-                "SeriesDescription": "T2 (SAG)-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "T2 (SAG)*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T2fast",
-            "customLabels": "rec-sag",
+            "modalityLabel": "T2w",
+            "customLabels": "acq-fast_rec-sag",
             "criteria": {
                 "SeriesDescription": "T2 (SAG, Fast)"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1gw",
-            "customLabels": "rec-axi",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-gw_rec-axi",
             "criteria": {
                 "SeriesDescription": "T1 (AXI)- Gray/White Contrast"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1std",
-            "customLabels": "rec-axi",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-std_rec-axi",
             "criteria": {
                 "SeriesDescription": "T1 (AXI)- Standard"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1gw",
-            "customLabels": "rec-cor",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-gw_rec-cor",
             "criteria": {
                 "SeriesDescription": "T1 (COR)- Gray/White Contrast"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1std",
-            "customLabels": "rec-cor",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-std_rec-cor",
             "criteria": {
                 "SeriesDescription": "T1 (COR)- Standard"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1gw",
-            "customLabels": "rec-sag",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-gw_rec-sag",
             "criteria": {
                 "SeriesDescription": "T1 (SAG)- Gray/White Contrast"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "T1std",
-            "customLabels": "rec-sag",
+            "modalityLabel": "T1w",
+            "customLabels": "acq-std_rec-sag",
             "criteria": {
                 "SeriesDescription": "T1 (SAG)- Standard"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "flair",
-            "customLabels": "rec-axi",
+            "modalityLabel": "FLAIR",
+            "customLabels": "acq-std_rec-axi",
             "criteria": {
-                "SeriesDescription": "FLAIR (AXI)-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "FLAIR (AXI)*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "flair",
-            "customLabels": "rec-cor",
+            "modalityLabel": "FLAIR",
+            "customLabels": "acq-std_rec-cor",
             "criteria": {
-                "SeriesDescription": "FLAIR (COR)-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "FLAIR (COR)*"
             }
         },
         {
             "dataType": "anat",
-            "modalityLabel": "flair",
-            "customLabels": "rec-sag",
+            "modalityLabel": "FLAIR",
+            "customLabels": "acq-std_rec-sag",
             "criteria": {
-                "SeriesDescription": "FLAIR (SAG)-NOT FOR DIAGNOSTIC USE"
+                "SeriesDescription": "FLAIR (SAG)*"
             }
         },
         {
             "dataType": "dwi",
-            "modalityLabel": "b0",
+            "modalityLabel": "dwi",
+            "customLabels": "acq-b0_rec-axi",
             "criteria": {
                 "SeriesDescription": "DWI b=0"
             }
         },
         {
             "dataType": "dwi",
-            "modalityLabel": "b900",
+            "modalityLabel": "dwi",
+            "customLabels": "acq-b900_rec-axi",
             "criteria": {
                 "SeriesDescription": "DWI b=900"
             }
         },
         {
             "dataType": "dwi",
-            "modalityLabel": "adc",
+            "modalityLabel": "dwi",
+            "customLabels": "acq-adc_rec-axi",
             "criteria": {
                 "SeriesDescription": "ADC"
             }
