@@ -9,7 +9,7 @@ from ghost.stats import *
 from ghost.calib import *
 from ghost.phantom import *
 
-def get_mask_nii(seg, target_BIDSImageFile, layout):
+def get_mask_nii(seg, target_BIDSImageFile, layout, verbose=False):
     """ Retrieve or create specified segmentation mask for target image. 
     All other functions depend on it since it is the smallest building block. 
     Perhaps it is useful as a standalone function for the cheeky scientist.
@@ -24,6 +24,9 @@ def get_mask_nii(seg, target_BIDSImageFile, layout):
 
     layout : BIDSLayout
         The BIDSLayout object.
+
+    verbose : bool
+        Whether to print the status of the function. Default is False.
 
     Returns
     -------
@@ -51,22 +54,22 @@ def get_mask_nii(seg, target_BIDSImageFile, layout):
     mask_dir = layout.get(scope='derivatives')[0].dirname + '/masks/sub-' + target_BIDSImageFile.entities['subject'] + '/ses-' + target_BIDSImageFile.entities['session'] + '/' + target_BIDSImageFile.entities['datatype']
     mask_path = mask_dir + '/' + mask_name
 
-    if not os.path.exists(mask_dir):
-        os.makedirs(mask_dir)
+    if not os.path.exists(mask_dir): os.makedirs(mask_dir)
 
     # Find out if mask already exists
     if mask_exists(target_BIDSImageFile, seg, layout):
-        print(f"A {seg}-mask already exists for {target_BIDSImageFile.filename}.")
+        if verbose: print(f"A {seg}-mask already exists for {target_BIDSImageFile.filename}.")
+        
         return mask_path
     else:
-        print(f"A {seg}-mask does not exist for {target_BIDSImageFile.filename}. Molding one now.")
+        if verbose: print(f"A {seg}-mask does not exist for {target_BIDSImageFile.filename}. Molding one now.")
+        
         suffix = target_BIDSImageFile.entities['suffix']
         if suffix == 'T1w':
             ref = 'T1'
         elif suffix == 'T2w' or suffix == 'FLAIR' or suffix == 'dwi':
             ref = 'T2'
-        else:
-            raise ValueError("The image type is not supported.")
+        else: raise ValueError("The image type is not supported.")
 
         # If the target image is ADC or b=900, use the b=0 image as the reference
         # Otherwise, use the target image as the reference
@@ -75,16 +78,18 @@ def get_mask_nii(seg, target_BIDSImageFile, layout):
             b0_entities = target_BIDSImageFile.get_entities()
             b0_entities['acquisition'] = 'b0'
             target_ANTsImage = ants.image_read(layout.get(scope='raw', **b0_entities)[0].path, reorient=True)
-        else:
+        
+        else: 
             target_ANTsImage = ants.image_read(target_BIDSImageFile.path)
 
         mask = warp_seg(target_img=target_ANTsImage, weighting=ref, seg=seg)
-        print(f"Saving {seg} mask to {mask_path}...")
+
+        if verbose: print(f"Saving {seg} mask to {mask_path}...")
         ants.image_write(mask, mask_path)
 
         return mask_path
 
-def bids2stats(target, seg, layout, toExcel=False):
+def bids2stats(target, seg, layout, toExcel=False, verbose=False):
     """ Get the stats of a specific segmentation for a list of BIDS files
     
     Parameters
@@ -92,8 +97,8 @@ def bids2stats(target, seg, layout, toExcel=False):
     target : list of BIDSImageFiles
         The list containing all the BIDSImageFiles to get the stats from. Can be a single file.
     
-    seg : str
-        The segmentation to use (T1, T2, ADC, LC, fiducials, wedges).
+    seg : str or list of str or path
+        Segmentation(s) to use (T1, T2, ADC, LC, fiducials, wedges). May also be a path to your own mask, just make sure the mask is placed in the /derivatives/masks/ folder.
 
     layout : BIDSLayout
         The BIDS layout to use.
@@ -101,7 +106,7 @@ def bids2stats(target, seg, layout, toExcel=False):
     Returns
     -------
     stats : pandas dataframe
-        A dataframe with LabelValue, mean, min, max, variance, count, volume, session, acquisition, orientation.
+        A dataframe with LabelValue, mean, min, max, variance, count, volume, session, acquisition, orientation, modality, run, segmentation.
     
     Example
     -------
@@ -112,52 +117,60 @@ def bids2stats(target, seg, layout, toExcel=False):
     """
 
     stats_merged = pd.DataFrame()
-    for target_bf in target: # bf = BIDSFile
-        mask_path = get_mask_nii(seg, target_bf, layout)
-        mask_img = ants.image_read(mask_path)
-        target_img = ants.image_read(target_bf.path)
+    possible_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
+    for i, s in enumerate(seg):
+        for target_bf in target: # bf = BIDSFile
+            if s in possible_seg:
+                mask_path = get_mask_nii(s, target_bf, layout, verbose=verbose)
+            else: 
+                mask_path = s
+                if verbose: print("Using custom mask.")
+            mask_img = ants.image_read(mask_path)
+            target_img = ants.image_read(target_bf.path)
 
-        # Use parse_rois to get the stats and add a column for the following entities
-        stats = parse_rois(target_img, mask_img)
-        stats['Session'] = target_bf.entities['session']
-        stats['Acquisition'] = target_bf.entities['acquisition']
-        stats['Modality'] = target_bf.entities['suffix']
-        if 'run' not in target_bf.entities:
-            stats['Run'] = 'NA'
-        else: 
-            stats['Run'] = target_bf.entities['run']
-        if 'reconstruction' not in target_bf.entities:
-            stats['Orientation'] = 'NA'
-        else:
-            stats['Orientation'] = target_bf.entities['reconstruction']
+            # Use parse_rois to get the stats and append the following entities
+            stats = parse_rois(target_img, mask_img)
+            stats['Session'] = target_bf.entities['session']
+            stats['Acquisition'] = target_bf.entities['acquisition']
+            stats['Modality'] = target_bf.entities['suffix']
+            if s in possible_seg: stats['Segmentation'] = s
+            else: stats['Segmentation'] = f'custom{i}'
 
-        if stats_merged.empty:
-            stats_merged = stats
-        else:
-            stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
+            if 'run' not in target_bf.entities: stats['Run'] = 'NA'
+            else: stats['Run'] = target_bf.entities['run']
 
-    stats_merged = stats_merged.sort_values(by=['Session', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
+            if 'reconstruction' not in target_bf.entities: 
+                stats['Orientation'] = 'NA'
+            else: 
+                stats['Orientation'] = target_bf.entities['reconstruction']
 
-    if toExcel:
+            if stats_merged.empty: 
+                stats_merged = stats
+            else: 
+                stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
+
+    stats_merged = stats_merged.sort_values(by=['Session', 'Segmentation', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
+
+    if toExcel: # save stats to the derivatives folder as an excel file
         acq_labels = '_'.join(stats_merged['Acquisition'].unique())
         rec_labels = '_'.join(stats_merged['Orientation'].unique())
         mod_labels = '_'.join(stats_merged['Modality'].unique())
+        seg_labels = '_'.join([s if s in possible_seg else f'c{i}' for i, s in enumerate(seg)])
 
-        # save stats to the derivatives folder as a excel file
         # Get filename of stats file
-        stats_name = 'acq-' + acq_labels + '__rec-' + rec_labels + '__desc-' + seg + '__' + mod_labels + '.xlsx'
+        stats_name = 'acq-' + acq_labels + '__rec-' + rec_labels + '__desc-' + seg_labels + '__' + mod_labels + '.xlsx'
         stats_dir =  mask_path.split("/masks/")[0] + '/stats'
-
         stats_path = stats_dir + '/' + stats_name
+
         # Create the stats directory if it doesn't exist
-        if not os.path.exists(stats_dir):
-            os.makedirs(stats_dir)
+        if not os.path.exists(stats_dir): os.makedirs(stats_dir)
+
         # Save the stats to an excel file
         stats_merged.to_excel(stats_path, index=False)
 
     return stats_merged
 
-def plot_mimics(target, layout, toFile=True):
+def plot_mimics(target, layout, toFile=True, verbose=False):
     """ Plot the T2, ADC, and T1 ROIs for a list of BIDS files
     
     Parameters
@@ -187,7 +200,7 @@ def plot_mimics(target, layout, toFile=True):
     masks = {}
     for i, target_bf in enumerate(target):
         for l in labels:
-            mask_path = get_mask_nii(l, target_bf, layout)
+            mask_path = get_mask_nii(l, target_bf, layout, verbose)
             masks[l] = ants.image_read(mask_path, reorient=True).numpy()
         target_img = ants.image_read(target_bf.path, reorient=True)
 
@@ -240,7 +253,7 @@ def plot_mimics(target, layout, toFile=True):
 
         plt.savefig(img_path)
 
-def plot_signal_ROI(target, seg, layout):
+def plot_signal_ROI(target, seg, layout, verbose=False):
     """ Plot the signal in different ROIs...
     
     Parameters
@@ -271,7 +284,7 @@ def plot_signal_ROI(target, seg, layout):
         return date_obj.strftime('%d/%m')
 
     # Get the stats for the target files and specified segmentation
-    stats = bids2stats(target, seg, layout, toExcel=False)
+    stats = bids2stats(target, seg, layout, toExcel=False, verbose=verbose)
 
     # If the 'Run' column in stats contains more than 'NA' values, group 'em together.
     if len(stats[stats['Run'] != 'NA']) > 0:
