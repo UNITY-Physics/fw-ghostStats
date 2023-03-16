@@ -97,7 +97,7 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
     target : list of BIDSImageFiles
         The list containing all the BIDSImageFiles to get the stats from. Can be a single file.
     
-    seg : str or list of str or path
+    seg : str
         Segmentation(s) to use (T1, T2, ADC, LC, fiducials, wedges). May also be a path to your own mask, just make sure the mask is placed in the /derivatives/masks/ folder.
 
     layout : BIDSLayout
@@ -115,39 +115,42 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
     >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='dwi', acquisition='adc')
     >>> stats = bids2stats(bids_files, 'ADC', layout, toExcel=False)
     """
-
-    stats_merged = pd.DataFrame()
     possible_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
-    for i, s in enumerate(seg):
-        for target_bf in target: # bf = BIDSFile
-            if s in possible_seg:
-                mask_path = get_mask_nii(s, target_bf, layout, verbose=verbose)
-            else: 
-                mask_path = s
-                if verbose: print("Using custom mask.")
-            mask_img = ants.image_read(mask_path)
-            target_img = ants.image_read(target_bf.path)
+    stats_merged = pd.DataFrame()
 
-            # Use parse_rois to get the stats and append the following entities
-            stats = parse_rois(target_img, mask_img)
-            stats['Session'] = target_bf.entities['session']
-            stats['Acquisition'] = target_bf.entities['acquisition']
-            stats['Modality'] = target_bf.entities['suffix']
-            if s in possible_seg: stats['Segmentation'] = s
-            else: stats['Segmentation'] = f'custom{i}'
+    for target_bf in target: # bf = BIDSFile
+        if seg in possible_seg:
+            mask_path = get_mask_nii(seg, target_bf, layout, verbose=verbose)
+        else: 
+            mask_path = seg
+            if verbose: print("Using custom mask.")
+        mask_img = ants.image_read(mask_path)
+        target_img = ants.image_read(target_bf.path)
+        
+        # Use parse_rois to get the stats and append the following entities
+        stats = parse_rois(target_img, mask_img)
+        stats['Session'] = target_bf.entities['session']
+        stats['Acquisition'] = target_bf.entities['acquisition']
+        stats['Modality'] = target_bf.entities['suffix']
+        if seg in possible_seg: 
+            stats['Segmentation'] = seg
+        else: 
+            stats['Segmentation'] = 'custom'
 
-            if 'run' not in target_bf.entities: stats['Run'] = 'NA'
-            else: stats['Run'] = target_bf.entities['run']
+        if 'run' not in target_bf.entities: 
+            stats['Run'] = 'NA'
+        else: 
+            stats['Run'] = target_bf.entities['run']
 
-            if 'reconstruction' not in target_bf.entities: 
-                stats['Orientation'] = 'NA'
-            else: 
-                stats['Orientation'] = target_bf.entities['reconstruction']
+        if 'reconstruction' not in target_bf.entities: 
+            stats['Orientation'] = 'NA'
+        else: 
+            stats['Orientation'] = target_bf.entities['reconstruction']
 
-            if stats_merged.empty: 
-                stats_merged = stats
-            else: 
-                stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
+        if stats_merged.empty: 
+            stats_merged = stats
+        else: 
+            stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
 
     stats_merged = stats_merged.sort_values(by=['Session', 'Segmentation', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
 
@@ -155,11 +158,12 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
         acq_labels = '_'.join(stats_merged['Acquisition'].unique())
         rec_labels = '_'.join(stats_merged['Orientation'].unique())
         mod_labels = '_'.join(stats_merged['Modality'].unique())
-        seg_labels = '_'.join([s if s in possible_seg else f'c{i}' for i, s in enumerate(seg)])
-
+        seg_label = str(seg if seg in possible_seg else 'custom')
         # Get filename of stats file
-        stats_name = 'acq-' + acq_labels + '__rec-' + rec_labels + '__desc-' + seg_labels + '__' + mod_labels + '.xlsx'
+        stats_name = 'acq-' + acq_labels + '__rec-' + rec_labels + '__desc-' + seg_label + '__' + mod_labels + '.xlsx'
+        # print(f"Stats name: {stats_name}")
         stats_dir =  mask_path.split("/masks/")[0] + '/stats'
+        # print(f"Stats directory: {stats_dir}")
         stats_path = stats_dir + '/' + stats_name
 
         # Create the stats directory if it doesn't exist
