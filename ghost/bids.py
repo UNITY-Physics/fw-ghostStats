@@ -207,9 +207,9 @@ def plot_mimics(target, layout, toFile=True, verbose=False):
             mask_path = get_mask_nii(l, target_bf, layout, verbose)
             masks[l] = ants.image_read(mask_path, reorient=True).numpy()
         target_img = ants.image_read(target_bf.path, reorient=True)
-
-        fig = plt.figure(figsize=(8, 3))
+        
         plt.style.use("dark_background")
+        fig = plt.figure(figsize=(8, 3))
         cmaps = ['Reds', 'Blues', 'Greens']
         for i, l in enumerate(labels):
             masks[l][masks[l] == 0] = np.nan
