@@ -4,3 +4,4 @@ matplotlib
 antspyx
 nibabel
 sklearn
+openpyxl
