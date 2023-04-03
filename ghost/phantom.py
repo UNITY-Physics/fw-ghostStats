@@ -226,7 +226,7 @@ def download_ref_data():
             {'fname':'ADC_mimics.nii.gz',
             'link':'https://www.dropbox.com/s/yuf0sl9uz1bkqu5/ADC_mimics.nii.gz?dl=0'},
             {'fname':'LC_vials.nii.gz',
-            'link':'https://www.dropbox.com/s/1c2mjugtyb04xjp/LC_vials.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/d11js9ct8wvms48/LC_vials.nii.gz?dl=0'},
             {'fname':'T2_mimics.nii.gz',
             'link':'https://www.dropbox.com/s/vkkwd02f8dz2nqu/T2_mimics.nii.gz?dl=0'},
             {'fname':'T1_mimics.nii.gz',
