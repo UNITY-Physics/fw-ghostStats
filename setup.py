@@ -28,7 +28,8 @@ setuptools.setup(
     entry_points={
         'console_scripts': [
             'ghost_download_phantom=ghost.phantom:download_ref_data',
-            'ghost_bids_temperature=ghost.bids:main_add_temperature'
+            'ghost_bids_temperature=ghost.bids:main_add_temperature',
+            'ghost_generate_mask=ghost.misc:generate_mask'
         ]
     }
 )

@@ -65,7 +65,7 @@ def get_mask_nii(seg, target_BIDSImageFile, layout, verbose=False):
         if verbose: print(f"A {seg}-mask does not exist for {target_BIDSImageFile.filename}. Molding one now.")
         
         suffix = target_BIDSImageFile.entities['suffix']
-        if suffix == 'T1w':
+        if suffix == 'T1w' or suffix == 'PDw':
             ref = 'T1'
         elif suffix == 'T2w' or suffix == 'FLAIR' or suffix == 'dwi':
             ref = 'T2'
@@ -78,13 +78,14 @@ def get_mask_nii(seg, target_BIDSImageFile, layout, verbose=False):
             b0_entities = target_BIDSImageFile.get_entities()
             b0_entities['acquisition'] = 'b0'
             target_ANTsImage = ants.image_read(layout.get(scope='raw', **b0_entities)[0].path, reorient=True)
-        
-        else: 
+
+        else:
             target_ANTsImage = ants.image_read(target_BIDSImageFile.path)
 
         mask = warp_seg(target_img=target_ANTsImage, weighting=ref, seg=seg)
 
         if verbose: print(f"Saving {seg} mask to {mask_path}...")
+        
         ants.image_write(mask, mask_path)
 
         return mask_path
@@ -130,6 +131,7 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
         # Use parse_rois to get the stats and append the following entities
         stats = parse_rois(target_img, mask_img)
         stats['Session'] = target_bf.entities['session']
+        stats['Subject'] = target_bf.entities['subject']
         stats['Acquisition'] = target_bf.entities['acquisition']
         stats['Modality'] = target_bf.entities['suffix']
         if seg in possible_seg: 
@@ -152,7 +154,7 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
         else: 
             stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
 
-    stats_merged = stats_merged.sort_values(by=['Session', 'Segmentation', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
+    stats_merged = stats_merged.sort_values(by=['Subject','Session', 'Segmentation', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
 
     if toExcel: # save stats to the derivatives folder as an excel file
         acq_labels = '_'.join(stats_merged['Acquisition'].unique())
@@ -210,7 +212,7 @@ def plot_mimics(target, layout, toFile=True, verbose=False):
         
         plt.style.use("dark_background")
         fig = plt.figure(figsize=(8, 3))
-        cmaps = ['Reds', 'Blues', 'Greens']
+        cmaps = ['Reds', 'Wistia', 'Greens']
         for i, l in enumerate(labels):
             masks[l][masks[l] == 0] = np.nan
             fig.add_subplot(1,3,i+1)
@@ -238,7 +240,7 @@ def plot_mimics(target, layout, toFile=True, verbose=False):
                             slices = [52, 68, 90]
 
             plt.imshow(target_img[:,:,slices[i]], cmap='gray', aspect=target_img.spacing[0]/target_img.spacing[1])
-            plt.imshow(masks[l][:,:,slices[i]], cmap=cmaps[i], alpha=0.5, aspect=target_img.spacing[0]/target_img.spacing[1])
+            # plt.imshow(masks[l][:,:,slices[i]], cmap=cmaps[i], alpha=0.5, aspect=target_img.spacing[0]/target_img.spacing[1])
             plt.title(l)
             plt.axis('off')
         suptitle = fig.suptitle(target_bf.filename[:-7], fontsize=12)
