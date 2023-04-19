@@ -29,7 +29,7 @@
             "modalityLabel": "T2w",
             "customLabels": "acq-fast_rec-axi",
             "criteria": {
-                "SeriesDescription": "T2 (AXI, Fast)"
+                "SeriesDescription": "T2 (AXI, Fast)*"
             }
         },
         {
@@ -45,7 +45,7 @@
             "modalityLabel": "T2w",
             "customLabels": "acq-fast_rec-cor",
             "criteria": {
-                "SeriesDescription": "T2 (COR, Fast)"
+                "SeriesDescription": "T2 (COR, Fast)*"
             }
         },
         {
@@ -61,7 +61,7 @@
             "modalityLabel": "T2w",
             "customLabels": "acq-fast_rec-sag",
             "criteria": {
-                "SeriesDescription": "T2 (SAG, Fast)"
+                "SeriesDescription": "T2 (SAG, Fast)*"
             }
         },
         {
@@ -69,7 +69,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-gw_rec-axi",
             "criteria": {
-                "SeriesDescription": "T1 (AXI)- Gray/White Contrast"
+                "SeriesDescription": "T1 (AXI)- Gray/White Contrast*"
             }
         },
         {
@@ -77,7 +77,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-std_rec-axi",
             "criteria": {
-                "SeriesDescription": "T1 (AXI)- Standard"
+                "SeriesDescription": "T1 (AXI)- Standard*"
             }
         },
         {
@@ -85,7 +85,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-gw_rec-cor",
             "criteria": {
-                "SeriesDescription": "T1 (COR)- Gray/White Contrast"
+                "SeriesDescription": "T1 (COR)- Gray/White Contrast*"
             }
         },
         {
@@ -93,7 +93,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-std_rec-cor",
             "criteria": {
-                "SeriesDescription": "T1 (COR)- Standard"
+                "SeriesDescription": "T1 (COR)- Standard*"
             }
         },
         {
@@ -101,7 +101,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-gw_rec-sag",
             "criteria": {
-                "SeriesDescription": "T1 (SAG)- Gray/White Contrast"
+                "SeriesDescription": "T1 (SAG)- Gray/White Contrast*"
             }
         },
         {
@@ -109,7 +109,7 @@
             "modalityLabel": "T1w",
             "customLabels": "acq-std_rec-sag",
             "criteria": {
-                "SeriesDescription": "T1 (SAG)- Standard"
+                "SeriesDescription": "T1 (SAG)- Standard*"
             }
         },
         {
@@ -141,7 +141,7 @@
             "modalityLabel": "dwi",
             "customLabels": "acq-b0_rec-axi",
             "criteria": {
-                "SeriesDescription": "DWI b=0"
+                "SeriesDescription": "DWI b=0*"
             }
         },
         {
@@ -149,7 +149,7 @@
             "modalityLabel": "dwi",
             "customLabels": "acq-b900_rec-axi",
             "criteria": {
-                "SeriesDescription": "DWI b=900"
+                "SeriesDescription": "DWI b=900*"
             }
         },
         {
@@ -157,7 +157,7 @@
             "modalityLabel": "dwi",
             "customLabels": "acq-adc_rec-axi",
             "criteria": {
-                "SeriesDescription": "ADC"
+                "SeriesDescription": "ADC*"
             }
         }
     ]
