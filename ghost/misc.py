@@ -5,6 +5,10 @@ import ghost
 import ants
 import os
 
+"""
+Miscellaneous functions (CLI)
+"""
+
 def generate_masks():
     parser = argparse.ArgumentParser(description='Generate T1, T2, and ADC masks from a given input file')
     parser.add_argument('input_file', help='input file path')

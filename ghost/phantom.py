@@ -234,7 +234,13 @@ def download_ref_data():
             {'fname':'fiducials.nii.gz',
             'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=0'},
             {'fname':'wedges.nii.gz',
-            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=0'}
+            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=0'},
+            {'fname':'phantom_dil_mask.nii.gz',
+            'link':'https://www.dropbox.com/s/sqzxan70rgre60j/phantom_dil_mask.nii.gz?dl=0'},
+            {'fname':'phantom_mask.nii.gz',
+            'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=0'},
+            {'fname':'T1_phantom_masked.nii.gz',
+            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=0'}
             ]
 
     # Check if folder exists
@@ -324,30 +330,6 @@ def save_xfm(xfm, filename):
         Filename of transform (file extension is ".mat" for affine transforms).
     """
     ants.write_transform(xfm, filename)
-
-# def get_file_path_to_seg(seg='T1'):
-#     """Get filename of segmentation image
-
-#     Args:
-#         seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
-
-#     Raises:
-#         ValueError: Wrong segmentation
-
-#     Returns:
-#         str: Full file path
-#     """
-#     avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
-#     if seg not in avail_seg:
-#         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
-#     else:
-#         if seg == 'T1' or seg == 'T2' or seg == 'ADC':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
-#         elif seg == 'fiducials' or seg == 'wedges':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
-#         elif seg == 'LC':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
-
 
 def process_all():
     # Shouldn' have any specific processing, just call other scripts

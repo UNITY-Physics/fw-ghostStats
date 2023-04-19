@@ -1,7 +1,8 @@
-numpy
-scipy
-matplotlib
 antspyx
+matplotlib
 nibabel
-sklearn
+numpy
 openpyxl
+pandas
+scipy
+sklearn
