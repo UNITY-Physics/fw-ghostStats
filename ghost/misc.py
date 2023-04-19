@@ -8,7 +8,7 @@ import os
 def generate_masks():
     parser = argparse.ArgumentParser(description='Generate T1, T2, and ADC masks from a given input file')
     parser.add_argument('input_file', help='input file path')
-    parser.add_argument('ref', help='reference image for registration (T1 or T2)', type=str)
+    parser.add_argument('--ref', default='T1' , help='reference image for registration (T1 or T2)', type=str)
     parser.add_argument('--output_prefix', help='prefix for output files', type=str)
     parser.add_argument('--seg', default='all', help='segmentation image for registration (T1 or T2 or ADC)', type=str)
     args = parser.parse_args()
@@ -36,7 +36,7 @@ def generate_masks():
         seg_bin = ants.image_read(get_phantom_nii(s))
         warped_seg = ants.apply_transforms(fixed=target_img, moving=seg_bin, transformlist=xfm)
         # save each warped seg image to a file as output_prefix_seg.nii.gz
-        
+
         # print "Created output_prefix_T1mask.nii.gz"
         print("Created " + output_prefix + '_' + s + 'mask.nii.gz')
 
