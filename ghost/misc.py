@@ -1,7 +1,5 @@
-from importlib import resources 
 from ghost.phantom import *
 import argparse
-import ghost
 import ants
 import os
 
