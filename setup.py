@@ -29,7 +29,8 @@ setuptools.setup(
         'console_scripts': [
             'ghost_download_phantom=ghost.phantom:download_ref_data',
             'ghost_bids_temperature=ghost.bids:main_add_temperature',
-            'ghost_generate_mask=ghost.misc:generate_mask'
+            'ghost_generate_mask=ghost.misc:generate_mask',
+            'ghost_warp_rois=ghost.phantom:main_warp_rois'
         ]
     }
 )

@@ -1,12 +1,16 @@
-from . import GHOSTDIR
-import subprocess as sp
+import argparse
 import os
-import pandas as pd
+import subprocess as sp
+
 import ants
 import nibabel as nib
 import numpy as np
+import pandas as pd
 from scipy import ndimage as ndi
 from scipy.optimize import curve_fit
+
+from . import GHOSTDIR
+from .dataio import load_4D_nifti
 
 """
 Functions to deal with the phantom images
@@ -330,6 +334,58 @@ def save_xfm(xfm, filename):
         Filename of transform (file extension is ".mat" for affine transforms).
     """
     ants.write_transform(xfm, filename)
+
+def main_warp_rois():
+    parser = argparse.ArgumentParser(description='Warp ROIs to target image')
+    parser.add_argument('input', type=str, help='Input image')
+    parser.add_argument('-w', '--weighting', type=str, default='T1', help='Phantom weighting (T1 or T2)')
+    parser.add_argument('-s', '--seg', nargs='+', type=str, help='Segmentation (T1, T2, ADC)')
+    parser.add_argument('-o', '--out', type=str, default=None, help='Output basename (default is input basename)')
+    parser.add_argument('--vol', type=int, default=None, help='Volume to use (default is last volume)')
+    args = parser.parse_args()
+
+    # Read input image
+    img = load_4D_nifti(args.input, vol=args.vol, mag=True)
+    
+    # Check segmentation options
+    valid_segs = ['T1', 'T2', 'ADC']
+    if args.out is None:
+        output_basename = os.path.basename(args.input).split('.')[0]
+    else:
+        output_basename = args.out
+    for s in args.seg:
+        if s not in valid_segs:
+            raise ValueError(f'Not a valid segmentation. (Valid: {valid_segs})')
+        else:
+            seg = warp_seg(img, weighting=args.weighting, seg=s)
+            outname = f'{output_basename}_{s}.nii.gz'
+            ants.image_write(seg, outname)
+            print(f"Saved {outname}")
+
+
+# def get_file_path_to_seg(seg='T1'):
+#     """Get filename of segmentation image
+
+#     Args:
+#         seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+
+#     Raises:
+#         ValueError: Wrong segmentation
+
+#     Returns:
+#         str: Full file path
+#     """
+#     avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
+#     if seg not in avail_seg:
+#         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
+#     else:
+#         if seg == 'T1' or seg == 'T2' or seg == 'ADC':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
+#         elif seg == 'fiducials' or seg == 'wedges':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
+#         elif seg == 'LC':
+#             return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
+
 
 def process_all():
     # Shouldn' have any specific processing, just call other scripts
