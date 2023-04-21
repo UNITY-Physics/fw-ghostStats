@@ -10,7 +10,7 @@ from scipy import ndimage as ndi
 from scipy.optimize import curve_fit
 
 from . import GHOSTDIR
-from .dataio import load_4D_nifti
+from .dataio import load_4D_nifti, get_nifti_basename
 
 """
 Functions to deal with the phantom images
@@ -339,7 +339,7 @@ def main_warp_rois():
     parser = argparse.ArgumentParser(description='Warp ROIs to target image')
     parser.add_argument('input', type=str, help='Input image')
     parser.add_argument('-w', '--weighting', type=str, default='T1', help='Phantom weighting (T1 or T2)')
-    parser.add_argument('-s', '--seg', nargs='+', type=str, help='Segmentation (T1, T2, ADC)')
+    parser.add_argument('-s', '--seg', action='append', type=str, help='Segmentation (T1, T2, ADC)')
     parser.add_argument('-o', '--out', type=str, default=None, help='Output basename (default is input basename)')
     parser.add_argument('--vol', type=int, default=None, help='Volume to use (default is last volume)')
     args = parser.parse_args()
@@ -350,7 +350,7 @@ def main_warp_rois():
     # Check segmentation options
     valid_segs = ['T1', 'T2', 'ADC']
     if args.out is None:
-        output_basename = os.path.basename(args.input).split('.')[0]
+        output_basename = get_nifti_basename(args.input)
     else:
         output_basename = args.out
     for s in args.seg:
@@ -358,7 +358,7 @@ def main_warp_rois():
             raise ValueError(f'Not a valid segmentation. (Valid: {valid_segs})')
         else:
             seg = warp_seg(img, weighting=args.weighting, seg=s)
-            outname = f'{output_basename}_{s}.nii.gz'
+            outname = f'{output_basename}_mask{s}.nii.gz'
             ants.image_write(seg, outname)
             print(f"Saved {outname}")
 

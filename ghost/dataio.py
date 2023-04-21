@@ -5,6 +5,7 @@ Everything input and output of data
 import ants
 import nibabel as nib
 import numpy as np
+import os
 
 def load_4D_nifti(img, vol=None, mag=False):
 
@@ -28,3 +29,9 @@ def load_4D_nifti(img, vol=None, mag=False):
     ants_img = ants.from_nibabel(new_nii)
 
     return ants_img
+
+def get_nifti_basename(fname):
+    bname, ext = os.path.splitext(fname)
+    if ext == '.gz':
+        bname, ext = os.path.splitext(bname)
+    return bname
