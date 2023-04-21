@@ -41,7 +41,3 @@ def generate_masks():
 
         # print "Created output_prefix_T1mask.nii.gz"
         print("Created " + output_prefix + '_' + s + 'mask.nii.gz')
-
-def get_ghost_dir():
-    p = os.path.join(resources.path(package=ghost, resource="").__enter__(), '..')
-    return os.path.abspath(p)
