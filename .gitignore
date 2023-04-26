@@ -132,3 +132,4 @@ dmypy.json
 sandbox/
 .DS_Store
 data/
+demo/
