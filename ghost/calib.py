@@ -36,9 +36,10 @@ class Calibration():
 
     def __init__(self, fname):
         self.data = read_calibration_sheet(fname)
-        self.__sheets = {'T1': 'NiCl_3T', 'T2': 'MnCl_3T', 'ADC': 'CuSO4_3T'}
+        self.__sheets = {3:{'T1': 'NiCl_3T', 'T2': 'MnCl_3T', 'ADC': 'ADC_3T', 'CuSO4': 'CuSO4_3T'},
+                         1.5:{'T1': 'NiCl_15T', 'T2': 'MnCl_15T', 'ADC': 'ADC_15T'}}
 
-    def __get_vals(self, temp, mimics, column):
+    def __get_vals(self, temp, mimics, column, B0=3):
         """Get T1 or T2 values for a given temperature, sorted from lowest to highest concentration
 
         Args:
@@ -50,15 +51,15 @@ class Calibration():
             list: List of T1 or T2 values for a given temperature, sorted from lowest to highest concentration
         """
         try:
-            sheet = self.__sheets.get(mimics)
+            sheet = self.__sheets[B0][mimics]
         except KeyError:
-            print('Mimics must be either T1 or T2')
+            raise KeyError(f'Cannot find sheet for {mimics} at {B0}T. Available sheets are {self.__sheets.keys()}')
         else:
             df = self.data.get(sheet)
-            if temp not in range(16, 27, 2):
-                raise ValueError('Temperature not available. Available temperatures are 16, 18, 20, 22, 24 and 26 degrees Celsius')
-            else:
-                return df.loc[df['Temperature (C)'] == temp, column + ' (ms)'].values
+            # if temp not in range(16, 27, 2):
+                # raise ValueError('Temperature not available. Available temperatures are 16, 18, 20, 22, 24 and 26 degrees Celsius')
+            # else:
+            return df.loc[df['Temperature (C)'] == temp, column + ' (ms)'].values
 
     
     def get_T1_conc(self):
@@ -85,7 +86,7 @@ class Calibration():
         """
         return self.data.get('MnCl_15T').get('Concentration (mM)').values
 
-    def get_T1_vals(self, temp, mimics='T1'):
+    def get_T1_vals(self, temp, mimics='T1', B0=3):
         """Get T1 values for a given temperature, sorted from lowest to highest concentration
 
         Args:
@@ -99,7 +100,7 @@ class Calibration():
             >>> calib = Calibration('calibration.xls')
             >>> calib.get_T1_vals(20)
         """
-        return self.__get_vals(temp, mimics, 'T1')
+        return self.__get_vals(temp=temp, mimics=mimics, column='T1', B0=B0)
 
     def get_T2_vals(self, temp, mimics='T2'):
         """Get T2 values for a given temperature, sorted from lowest to highest concentration

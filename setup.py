@@ -27,9 +27,7 @@ setuptools.setup(
     install_requires=requirements,
     entry_points={
         'console_scripts': [
-            'ghost_download_phantom=ghost.phantom:download_ref_data',
-            'ghost_bids_temperature=ghost.bids:main_add_temperature',
-            'ghost_warp_rois=ghost.phantom:main_warp_rois'
+            'ghost=ghost.main_ghost:main'
         ]
     }
 )

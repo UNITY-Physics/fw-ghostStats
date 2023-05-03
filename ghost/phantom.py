@@ -1,6 +1,4 @@
-import argparse
 import os
-import subprocess as sp
 
 import ants
 import nibabel as nib
@@ -9,12 +7,157 @@ import pandas as pd
 from scipy import ndimage as ndi
 from scipy.optimize import curve_fit
 
-from . import GHOSTDIR
-from .dataio import load_4D_nifti, get_nifti_basename
+from .misc import ghost_path
 
 """
 Functions to deal with the phantom images
 """
+
+def get_phantom_nii(weighting='T1'):
+    """Get filename of phantom image
+
+    Args:
+        weighting (str, optional): Which weighting (T1 or T2). Default is 'T1'.
+
+    Raises:
+        ValueError: Wrong weighting
+
+    Returns:
+        str: Full file path
+    """
+    avail_weightings = ['T1', 'T2']
+    if weighting not in avail_weightings:
+        raise ValueError(f'Not a valid weighting. (Valid: {avail_weightings})')
+    else:
+        return os.path.join(ghost_path(), 'data', f'{weighting}_phantom.nii.gz')
+
+def get_seg_nii(seg='T1'):
+    """Get filename of segmentation image
+
+    Args:
+        seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+
+    Raises:
+        ValueError: Wrong segmentation
+
+    Returns:
+        str: Full file path
+    """
+    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'wedges', 'fiducials']
+    if seg not in avail_seg:
+        raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
+    else:
+        if seg == 'T1' or seg == 'T2' or seg == 'ADC':
+            return os.path.join(ghost_path(), 'data', f'{seg}_mimics.nii.gz')
+        elif seg == 'fiducials' or seg == 'wedges':
+            return os.path.join(ghost_path(), 'data', f'{seg}.nii.gz')
+        elif seg == 'LC':
+            return os.path.join(ghost_path(), 'data', f'{seg}_vials.nii.gz')
+
+def reg_to_phantom(target_img, phantom_weighting='T1', xfm_type='Affine'):
+    """Get transformation object from target image to reference image
+    
+    Parameters
+    ----------
+    target_img : antsImage
+        The target image. Probably from the swoop.
+    
+    phantom_weighting : str
+        Which weighting (T1 or T2). Default is 'T1'.
+
+    xfm_type : str
+        The type of transformation to use. Default is 'Affine'.
+        See ANTsPy documentation for other options (https://antspy.readthedocs.io/en/latest/registration.html).
+
+    Returns
+    -------
+    ANTsTransform
+        The transformation object.
+    """
+    ref_img = ants.image_read(get_phantom_nii(phantom_weighting))
+    reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
+    return reg['fwdtransforms']
+
+def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
+    """Warp any segmentation to target image
+    
+    Parameters
+    ----------
+    target_img : ANTsImage
+        The reference image.
+    
+    xfm : ANTsTransform
+        The transformation object.
+
+    weighting : str
+        Which phantom weighting to use (T1 or T2).
+    
+    seg : str
+        Which segmentation to use (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+    
+    Returns
+    -------
+    ANTsImage
+        The warped segmentation.
+    """
+    if xfm is None and weighting is None:
+        raise ValueError('Either xfm or weighting must be provided')
+    elif xfm is not None and weighting is not None:
+        raise ValueError('xfm and weighting cannot both be provided')
+    elif xfm is None and weighting is not None:
+        xfm = reg_to_phantom(target_img, phantom_weighting=weighting, xfm_type='Affine')
+
+    seg = ants.image_read(get_seg_nii(seg))
+    seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, whichtoinvert=[1], transformlist=xfm, interpolator='genericLabel')
+    return seg_warp
+
+def save_xfm(xfm, filename):
+    """Save the transformation object to a file
+    
+    Parameters
+    ----------
+    xfm : ANTsTransform
+        The transformation object.
+    
+    filename : str
+        Filename of transform (file extension is ".mat" for affine transforms).
+    """
+    ants.write_transform(xfm, filename)
+
+def generate_masks():
+    parser = argparse.ArgumentParser(description='Generate T1, T2, and ADC masks from a given input file')
+    parser.add_argument('input_file', help='input file path')
+    parser.add_argument('--ref', default='T1' , help='reference image for registration (T1 or T2)', type=str)
+    parser.add_argument('--output_prefix', help='prefix for output files', type=str)
+    parser.add_argument('--seg', default='all', help='segmentation image for registration (T1 or T2 or ADC)', type=str)
+    args = parser.parse_args()
+
+    input_file = args.input_file
+    ref = args.ref
+    output_prefix = args.output_prefix if args.output_prefix else os.path.splitext(os.path.basename(input_file))[0]
+
+    if args.seg == 'all':
+        seg = ['T1', 'T2', 'ADC']
+    elif args.seg == 'T':
+        seg = ['T1', 'T2']
+    else:
+        seg = [args.seg]
+
+    # use input_file and output_prefix in your function code
+    target_img = ants.image_read(input_file)
+
+    # Find out if target_ANTsImage is T1w or T2w by looking at the metadata
+    ref_img = ants.image_read(get_phantom_nii(ref))
+    reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='Affine')
+    xfm = reg['fwdtransforms']
+
+    for s in seg:
+        seg_bin = ants.image_read(get_phantom_nii(s))
+        warped_seg = ants.apply_transforms(fixed=target_img, moving=seg_bin, transformlist=xfm)
+        # save each warped seg image to a file as output_prefix_seg.nii.gz
+
+        # print "Created output_prefix_T1mask.nii.gz"
+        print("Created " + output_prefix + '_' + s + 'mask.nii.gz')
 
 def calculate_slice_thickness_from_wedges(img_data, seg_data, sigma=3, wedge_angle=10, resolution=None, return_plot_data=False):
     """Calculate the slice thickness of a 3D image. The slice thickness is calculated by fitting a Gaussian to the intensity gradient along the wedges of the image and calculating the slice thickness from the standard deviation of the Gaussian.
@@ -178,215 +321,3 @@ def transform_reference_segmentation(ref_img_path, ref_seg_path, target_img_path
 
     return img_data, seg_data
 
-def get_phantom_nii(weighting='T1'):
-    """Get filename of phantom image
-
-    Args:
-        weighting (str, optional): Which weighting (T1 or T2). Default is 'T1'.
-
-    Raises:
-        ValueError: Wrong weighting
-
-    Returns:
-        str: Full file path
-    """
-    avail_weightings = ['T1', 'T2']
-    if weighting not in avail_weightings:
-        raise ValueError(f'Not a valid weighting. (Valid: {avail_weightings})')
-    else:
-        return os.path.join(GHOSTDIR, 'data', f'{weighting}_phantom.nii.gz')
-
-def get_seg_nii(seg='T1'):
-    """Get filename of segmentation image
-
-    Args:
-        seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
-
-    Raises:
-        ValueError: Wrong segmentation
-
-    Returns:
-        str: Full file path
-    """
-    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'wedges', 'fiducials']
-    if seg not in avail_seg:
-        raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
-    else:
-        if seg == 'T1' or seg == 'T2' or seg == 'ADC':
-            return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
-        elif seg == 'fiducials' or seg == 'wedges':
-            return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
-        elif seg == 'LC':
-            return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
-        
-def download_ref_data():
-    """
-    Downloads reference data for the phantom from Dropbox
-    """
-    files = [{'fname':'T1_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/cwujos81rtt6s87/T1_phantom.nii.gz?dl=0'},
-            {'fname':'T2_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/pcq7be6q019j6jb/T2_phantom.nii.gz?dl=0'},
-            {'fname':'ADC_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/yuf0sl9uz1bkqu5/ADC_mimics.nii.gz?dl=0'},
-            {'fname':'LC_vials.nii.gz',
-            'link':'https://www.dropbox.com/s/d11js9ct8wvms48/LC_vials.nii.gz?dl=0'},
-            {'fname':'T2_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/vkkwd02f8dz2nqu/T2_mimics.nii.gz?dl=0'},
-            {'fname':'T1_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/0ai6z3cg94xcvn8/T1_mimics.nii.gz?dl=0'},
-            {'fname':'fiducials.nii.gz',
-            'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=0'},
-            {'fname':'wedges.nii.gz',
-            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=0'},
-            {'fname':'phantom_dil_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/sqzxan70rgre60j/phantom_dil_mask.nii.gz?dl=0'},
-            {'fname':'phantom_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=0'},
-            {'fname':'T1_phantom_masked.nii.gz',
-            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=0'}
-            ]
-
-    # Check if folder exists
-    dl_path = f"{GHOSTDIR}/data"
-    if not os.path.exists(dl_path):
-        os.mkdir(dl_path)
-        print(f"Created folder: {dl_path}")
-
-    for f in files:
-        file_path = f"{dl_path}/{f['fname']}"
-        if not os.path.exists(file_path):
-            dl_link = f['link']
-            print('Downloading %s from %s'%(f['fname'], f['link']))
-            cmd = f'wget -q -O {file_path} "{dl_link}"'
-            out = sp.call(cmd, shell=True)
-            print(f'Done. File saved to {file_path}')
-
-        else:
-            print("%s is already downloaded. Skipping"%f['fname'])
-
-def reg_to_phantom(target_img, phantom_weighting='T1', xfm_type='Affine'):
-    """Get transformation object from target image to reference image
-    
-    Parameters
-    ----------
-    target_img : antsImage
-        The target image. Probably from the swoop.
-    
-    phantom_weighting : str
-        Which weighting (T1 or T2). Default is 'T1'.
-
-    xfm_type : str
-        The type of transformation to use. Default is 'Affine'.
-        See ANTsPy documentation for other options (https://antspy.readthedocs.io/en/latest/registration.html).
-
-    Returns
-    -------
-    ANTsTransform
-        The transformation object.
-    """
-    ref_img = ants.image_read(get_phantom_nii(phantom_weighting))
-    reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
-    return reg['fwdtransforms']
-
-def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
-    """Warp any segmentation to target image
-    
-    Parameters
-    ----------
-    target_img : ANTsImage
-        The reference image.
-    
-    xfm : ANTsTransform
-        The transformation object.
-
-    weighting : str
-        Which phantom weighting to use (T1 or T2).
-    
-    seg : str
-        Which segmentation to use (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
-    
-    Returns
-    -------
-    ANTsImage
-        The warped segmentation.
-    """
-    if xfm is None and weighting is None:
-        raise ValueError('Either xfm or weighting must be provided')
-    elif xfm is not None and weighting is not None:
-        raise ValueError('xfm and weighting cannot both be provided')
-    elif xfm is None and weighting is not None:
-        xfm = reg_to_phantom(target_img, phantom_weighting=weighting, xfm_type='Affine')
-
-    seg = ants.image_read(get_seg_nii(seg))
-    seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, whichtoinvert=[1], transformlist=xfm, interpolator='genericLabel')
-    return seg_warp
-
-def save_xfm(xfm, filename):
-    """Save the transformation object to a file
-    
-    Parameters
-    ----------
-    xfm : ANTsTransform
-        The transformation object.
-    
-    filename : str
-        Filename of transform (file extension is ".mat" for affine transforms).
-    """
-    ants.write_transform(xfm, filename)
-
-def main_warp_rois():
-    parser = argparse.ArgumentParser(description='Warp ROIs to target image')
-    parser.add_argument('input', type=str, help='Input image')
-    parser.add_argument('-w', '--weighting', type=str, default='T1', help='Phantom weighting (T1 or T2)')
-    parser.add_argument('-s', '--seg', action='append', type=str, help='Segmentation (T1, T2, ADC)')
-    parser.add_argument('-o', '--out', type=str, default=None, help='Output basename (default is input basename)')
-    parser.add_argument('--vol', type=int, default=None, help='Volume to use (default is last volume)')
-    args = parser.parse_args()
-
-    # Read input image
-    img = load_4D_nifti(args.input, vol=args.vol, mag=True)
-    
-    # Check segmentation options
-    valid_segs = ['T1', 'T2', 'ADC']
-    if args.out is None:
-        output_basename = get_nifti_basename(args.input)
-    else:
-        output_basename = args.out
-    for s in args.seg:
-        if s not in valid_segs:
-            raise ValueError(f'Not a valid segmentation. (Valid: {valid_segs})')
-        else:
-            seg = warp_seg(img, weighting=args.weighting, seg=s)
-            outname = f'{output_basename}_mask{s}.nii.gz'
-            ants.image_write(seg, outname)
-            print(f"Saved {outname}")
-
-
-# def get_file_path_to_seg(seg='T1'):
-#     """Get filename of segmentation image
-
-#     Args:
-#         seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
-
-#     Raises:
-#         ValueError: Wrong segmentation
-
-#     Returns:
-#         str: Full file path
-#     """
-#     avail_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
-#     if seg not in avail_seg:
-#         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
-#     else:
-#         if seg == 'T1' or seg == 'T2' or seg == 'ADC':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}_mimics.nii.gz')
-#         elif seg == 'fiducials' or seg == 'wedges':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}.nii.gz')
-#         elif seg == 'LC':
-#             return os.path.join(GHOSTDIR, 'data', f'{seg}_vials.nii.gz')
-
-
-def process_all():
-    # Shouldn' have any specific processing, just call other scripts
-    pass

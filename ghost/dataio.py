@@ -35,3 +35,4 @@ def get_nifti_basename(fname):
     if ext == '.gz':
         bname, ext = os.path.splitext(bname)
     return bname
+
