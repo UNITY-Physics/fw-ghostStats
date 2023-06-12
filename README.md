@@ -8,16 +8,21 @@ This is a simple pip package which you can install with
 python -m pip install -e .
 ```
 
-To download phantom reference data run
+## Command line interface (CLI) usage
+The GHOST package has a single binary which executes with the `ghost` command
 ```
-ghost_download_phantom
-```
-or in a python environment
-```
-from ghost.phantom import download_ref_data
+usage: ghost <command> [<args>]
 
-download_ref_data()
+    Available commands are
+	setup                    Download data
+	update_sidecar           Update json sidecar info from dicom tags
+	warp_rois                Warp ROIS
+
 ```
+
+- `setup`: First command to run which downloads the reference data used for segmentation
+- `update_sidecar`: Used to update sidecare info from dicom tags
+- `warp_rois`: The main command used for segmenting phantom data.
 
 ## Conventions
 - Analysis is performed in Python (version 3)
@@ -76,9 +81,5 @@ project
 - Parse and plot information in the reference measurement sheet for the phantom ([Notebook example](phantom_characteristics.ipynb))
 
 ## Features to be implemented
-- [ ] A standard geometrically accurate template with everything segmented
-- [ ] Automatically resample the phantom to the acquired resolution of the hyperfine scan
-- [ ] Automatic registration and transformation of labels to hyperfine image
-- [ ] Assessment of linear and non-linear warp field to template image
 - [ ] QC tool where the transformed segmentations are overlayed on the hyperfine image with text labels
 - [ ] Source list of concentration in each vial. Check if these match between phantoms. Otherwise, input excell file and parse.
