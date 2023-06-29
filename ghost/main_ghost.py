@@ -1,18 +1,19 @@
 import argparse
-import os 
-import sys
-import subprocess as sp
 import glob
 import json
+import os
 import re
+import subprocess as sp
+import sys
 
 import ants
-import pydicom
 import numpy as np
+import pydicom
+import requests
 
-from .dataio import load_4D_nifti, get_nifti_basename
-from .phantom import warp_seg
+from .dataio import get_nifti_basename, load_4D_nifti
 from .misc import ghost_path
+from .phantom import warp_seg
 
 
 def main():
@@ -108,27 +109,27 @@ def download_ref_data():
     Downloads reference data for the phantom from Dropbox
     """
     files = [{'fname':'T1_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/cwujos81rtt6s87/T1_phantom.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/cwujos81rtt6s87/T1_phantom.nii.gz?dl=1'},
             {'fname':'T2_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/pcq7be6q019j6jb/T2_phantom.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/pcq7be6q019j6jb/T2_phantom.nii.gz?dl=1'},
             {'fname':'ADC_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/bqjszlrwxu0vhd8/ADC_mimics.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/bqjszlrwxu0vhd8/ADC_mimics.nii.gz?dl=1'},
             {'fname':'LC_vials.nii.gz',
-            'link':'https://www.dropbox.com/s/d11js9ct8wvms48/LC_vials.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/d11js9ct8wvms48/LC_vials.nii.gz?dl=1'},
             {'fname':'T2_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/c8tkz5tsqi4lgxy/T2_mimics.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/c8tkz5tsqi4lgxy/T2_mimics.nii.gz?dl=1'},
             {'fname':'T1_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/rqi1fxksbung53g/T1_mimics.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/rqi1fxksbung53g/T1_mimics.nii.gz?dl=1'},
             {'fname':'fiducials.nii.gz',
-            'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=1'},
             {'fname':'wedges.nii.gz',
-            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=1'},
             {'fname':'phantom_dil_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/sqzxan70rgre60j/phantom_dil_mask.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/sqzxan70rgre60j/phantom_dil_mask.nii.gz?dl=1'},
             {'fname':'phantom_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=0'},
+            'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=1'},
             {'fname':'T1_phantom_masked.nii.gz',
-            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=0'}
+            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=1'}
             ]
 
     # Check if folder exists
@@ -142,8 +143,8 @@ def download_ref_data():
         if not os.path.exists(file_path):
             dl_link = f['link']
             print('Downloading %s from %s'%(f['fname'], f['link']))
-            cmd = f'wget -q -O {file_path} "{dl_link}"'
-            out = sp.call(cmd, shell=True)
+            myfile = requests.get(dl_link)
+            fwrite = open(file_path, 'wb').write(myfile.content)
             print(f'Done. File saved to {file_path}')
 
         else:
