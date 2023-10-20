@@ -5,5 +5,5 @@ numpy
 openpyxl
 pandas
 scipy
-sklearn
+scikit-learn
 pydicom
