@@ -39,7 +39,7 @@ class Calibration():
         self.__sheets = {3:{'T1': 'NiCl_3T', 'T2': 'MnCl_3T', 'ADC': 'ADC_3T', 'CuSO4': 'CuSO4_3T'},
                          1.5:{'T1': 'NiCl_15T', 'T2': 'MnCl_15T', 'ADC': 'ADC_15T'}}
 
-    def __get_vals(self, temp, mimics, column, B0=3):
+    def _get_vals(self, temp, mimics, column, B0=3):
         """Get T1 or T2 values for a given temperature, sorted from lowest to highest concentration
 
         Args:
@@ -100,9 +100,9 @@ class Calibration():
             >>> calib = Calibration('calibration.xls')
             >>> calib.get_T1_vals(20)
         """
-        return self.__get_vals(temp=temp, mimics=mimics, column='T1', B0=B0)
+        return self._get_vals(temp=temp, mimics=mimics, column='T1', B0=B0)
 
-    def get_T2_vals(self, temp, mimics='T2'):
+    def get_T2_vals(self, temp, mimics='T2', B0=3):
         """Get T2 values for a given temperature, sorted from lowest to highest concentration
         
         Args:
@@ -116,7 +116,7 @@ class Calibration():
             >>> calib = Calibration('calibration.xls')
             >>> calib.get_T2_vals(20)
         """
-        return self.__get_vals(temp, mimics, 'T2')
+        return self._get_vals(temp=temp, mimics=mimics, column='T2', B0=B0)
 
 
     def get_ADC_vals(self, temp):

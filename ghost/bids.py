@@ -51,8 +51,14 @@ def get_mask_nii(seg, target_BIDSImageFile, layout, verbose=False):
 
     # Get filename of mask
     mask_name = target_BIDSImageFile.filename[:-10] + 'desc-' + seg + '_' + target_BIDSImageFile.entities['suffix'] + '.nii.gz'
-    mask_dir = layout.get(scope='derivatives')[0].dirname + '/masks/sub-' + target_BIDSImageFile.entities['subject'] + '/ses-' + target_BIDSImageFile.entities['session'] + '/' + target_BIDSImageFile.entities['datatype']
-    mask_path = mask_dir + '/' + mask_name
+    deriv_path = layout.get(scope='derivatives')[0].dirname
+    mask_dir =  os.path.join(deriv_path, 'masks', f"sub-{target_BIDSImageFile.entities['subject']}")
+    try: 
+        mask_dir = os.path.join(mask_dir, f"ses-{target_BIDSImageFile.entities['session']}")
+    except KeyError:
+        pass
+    mask_dir = os.path.join(mask_dir, target_BIDSImageFile.entities['datatype'])
+    mask_path = os.path.join(mask_dir, mask_name)
 
     if not os.path.exists(mask_dir): os.makedirs(mask_dir)
 
@@ -116,7 +122,7 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
     >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='dwi', acquisition='adc')
     >>> stats = bids2stats(bids_files, 'ADC', layout, toExcel=False)
     """
-    possible_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges']
+    possible_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges', 'BG']
     stats_merged = pd.DataFrame()
 
     for target_bf in target: # bf = BIDSFile
@@ -130,7 +136,10 @@ def bids2stats(target, seg, layout, toExcel=False, verbose=False):
         
         # Use parse_rois to get the stats and append the following entities
         stats = parse_rois(target_img, mask_img)
-        stats['Session'] = target_bf.entities['session']
+        try:
+            stats['Session'] = target_bf.entities['session']
+        except KeyError:
+            stats['Session'] = ''
         stats['Subject'] = target_bf.entities['subject']
         stats['Acquisition'] = target_bf.entities['acquisition']
         stats['Modality'] = target_bf.entities['suffix']
