@@ -30,6 +30,7 @@ def get_phantom_nii(weighting='T1'):
         raise ValueError(f'Not a valid weighting. (Valid: {avail_weightings})')
     else:
         return os.path.join(ghost_path(), 'data', f'{weighting}_phantom.nii.gz')
+    
 
 def get_seg_nii(seg='T1'):
     """Get filename of segmentation image
@@ -43,7 +44,7 @@ def get_seg_nii(seg='T1'):
     Returns:
         str: Full file path
     """
-    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'wedges', 'fiducials']
+    avail_seg = ['T1', 'T2', 'ADC', 'LC', 'wedges', 'fiducials', 'BG', 'phantom', 'phantom_dil']
     if seg not in avail_seg:
         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
     else:
@@ -53,8 +54,14 @@ def get_seg_nii(seg='T1'):
             return os.path.join(ghost_path(), 'data', f'{seg}.nii.gz')
         elif seg == 'LC':
             return os.path.join(ghost_path(), 'data', f'{seg}_vials.nii.gz')
+        elif seg == 'BG':
+            return os.path.join(ghost_path(), 'data', 'Background.nii.gz')
+        elif seg == 'phantom':
+            return os.path.join(ghost_path(), 'data', 'phantom_mask.nii.gz')
+        elif seg == 'phantom_dil':
+            return os.path.join(ghost_path(), 'data', 'phantom_dil_mask.nii.gz')
 
-def reg_to_phantom(target_img, phantom_weighting='T1', xfm_type='Affine'):
+def reg_to_phantom(target_img, phantom_weighting='T1'):
     """Get transformation object from target image to reference image
     
     Parameters
@@ -75,8 +82,17 @@ def reg_to_phantom(target_img, phantom_weighting='T1', xfm_type='Affine'):
         The transformation object.
     """
     ref_img = ants.image_read(get_phantom_nii(phantom_weighting))
-    reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform=xfm_type)
-    return reg['fwdtransforms']
+    mask = ants.image_read(get_seg_nii('phantom_dil'))
+    
+    # Step one is rigid to get correct orientation
+    reg_rigid = ants.registration(fixed=ref_img, moving=target_img, mask=mask, 
+                                  type_of_transform='DenseRigid')
+    
+    # Step 2 is elastic registration
+    reg_elastics = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='ElasticSyN', 
+                                initial_transform=reg_rigid['fwdtransforms'][0])
+    
+    return reg_elastics['invtransforms']
 
 def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
     """Warp any segmentation to target image
@@ -105,10 +121,11 @@ def warp_seg(target_img, xfm=None, weighting=None, seg='T1'):
     elif xfm is not None and weighting is not None:
         raise ValueError('xfm and weighting cannot both be provided')
     elif xfm is None and weighting is not None:
-        xfm = reg_to_phantom(target_img, phantom_weighting=weighting, xfm_type='Affine')
+        xfm_elastic = reg_to_phantom(target_img, phantom_weighting=weighting)
 
     seg = ants.image_read(get_seg_nii(seg))
-    seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, whichtoinvert=[1], transformlist=xfm, interpolator='genericLabel')
+    seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, 
+                                     transformlist=xfm_elastic, interpolator='genericLabel')
     return seg_warp
 
 def save_xfm(xfm, filename):
