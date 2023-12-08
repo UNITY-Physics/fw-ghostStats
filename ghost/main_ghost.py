@@ -3,11 +3,9 @@ import glob
 import json
 import os
 import re
-import subprocess as sp
 import sys
 
 import ants
-import numpy as np
 import pydicom
 import requests
 
@@ -87,7 +85,7 @@ def main_warp_rois(args):
         img = load_4D_nifti(args.input, vol=args.vol, mag=True)
         
         # Check segmentation options
-        valid_segs = ['T1', 'T2', 'ADC']
+        valid_segs = ['T1', 'T2', 'ADC', 'BG']
         if args.out is None:
             output_basename = get_nifti_basename(args.input)
         else:
@@ -129,7 +127,9 @@ def download_ref_data():
             {'fname':'phantom_mask.nii.gz',
             'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=1'},
             {'fname':'T1_phantom_masked.nii.gz',
-            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=1'}
+            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=1'},
+            {'fname':'Background.nii.gz',
+             'link':'https://www.dropbox.com/s/tr8s4rbw5gquob2/Background.nii.gz?dl=1'}
             ]
 
     # Check if folder exists
