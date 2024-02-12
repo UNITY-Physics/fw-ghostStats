@@ -8,10 +8,17 @@ from scipy import ndimage as ndi
 from scipy.optimize import curve_fit
 
 from .misc import ghost_path
+import argparse
 
 """
 Functions to deal with the phantom images
 """
+
+def _check_fname(fname):
+    if os.path.exists(fname):
+        return fname
+    else:
+        raise FileNotFoundError(f"Can't find {fname}. Try running ghost setup")
 
 def get_phantom_nii(weighting='T1'):
     """Get filename of phantom image
@@ -29,9 +36,9 @@ def get_phantom_nii(weighting='T1'):
     if weighting not in avail_weightings:
         raise ValueError(f'Not a valid weighting. (Valid: {avail_weightings})')
     else:
-        return os.path.join(ghost_path(), 'data', f'{weighting}_phantom.nii.gz')
+        return _check_fname(os.path.join(ghost_path(), 'data', f'{weighting}_phantom.nii.gz'))
+        
     
-
 def get_seg_nii(seg='T1'):
     """Get filename of segmentation image
 
@@ -49,17 +56,17 @@ def get_seg_nii(seg='T1'):
         raise ValueError(f'Not a valid segmentation. (Valid: {avail_seg})')
     else:
         if seg == 'T1' or seg == 'T2' or seg == 'ADC':
-            return os.path.join(ghost_path(), 'data', f'{seg}_mimics.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', f'{seg}_mimics.nii.gz'))
         elif seg == 'fiducials' or seg == 'wedges':
-            return os.path.join(ghost_path(), 'data', f'{seg}.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', f'{seg}.nii.gz'))
         elif seg == 'LC':
-            return os.path.join(ghost_path(), 'data', f'{seg}_vials.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', f'{seg}_vials.nii.gz'))
         elif seg == 'BG':
-            return os.path.join(ghost_path(), 'data', 'Background.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', 'Background.nii.gz'))
         elif seg == 'phantom':
-            return os.path.join(ghost_path(), 'data', 'phantom_mask.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', 'phantom_mask.nii.gz'))
         elif seg == 'phantom_dil':
-            return os.path.join(ghost_path(), 'data', 'phantom_dil_mask.nii.gz')
+            return _check_fname(os.path.join(ghost_path(), 'data', 'phantom_dil_mask.nii.gz'))
 
 def reg_to_phantom(target_img, phantom_weighting='T1'):
     """Get transformation object from target image to reference image
