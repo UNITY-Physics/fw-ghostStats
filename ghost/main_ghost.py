@@ -106,36 +106,36 @@ def download_ref_data():
     """
     Downloads reference data for the phantom from Dropbox
     """
-    files = [{'fname':'T1_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/cwujos81rtt6s87/T1_phantom.nii.gz?dl=1'},
-            {'fname':'T2_phantom.nii.gz',
-            'link':'https://www.dropbox.com/s/pcq7be6q019j6jb/T2_phantom.nii.gz?dl=1'},
-            {'fname':'ADC_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/bqjszlrwxu0vhd8/ADC_mimics.nii.gz?dl=1'},
-            {'fname':'LC_vials.nii.gz',
-            'link':'https://www.dropbox.com/s/d11js9ct8wvms48/LC_vials.nii.gz?dl=1'},
-            {'fname':'T2_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/c8tkz5tsqi4lgxy/T2_mimics.nii.gz?dl=1'},
-            {'fname':'T1_mimics.nii.gz',
-            'link':'https://www.dropbox.com/s/rqi1fxksbung53g/T1_mimics.nii.gz?dl=1'},
-            {'fname':'fiducials.nii.gz',
-            'link':'https://www.dropbox.com/s/1e6dzar48ajx3zt/fiducials.nii.gz?dl=1'},
-            {'fname':'wedges.nii.gz',
-            'link':'https://www.dropbox.com/s/y9k852idyxi8vwa/wedges.nii.gz?dl=1'},
-            {'fname':'phantom_dil_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/sqzxan70rgre60j/phantom_dil_mask.nii.gz?dl=1'},
-            {'fname':'phantom_mask.nii.gz',
-            'link':'https://www.dropbox.com/s/1hvc6kc915gj2rf/phantom_mask.nii.gz?dl=1'},
-            {'fname':'T1_phantom_masked.nii.gz',
-            'link':'https://www.dropbox.com/s/gvwj0qo43mj09l9/T1_phantom_masked.nii.gz?dl=1'},
-            {'fname':'Background.nii.gz',
-             'link':'https://www.dropbox.com/s/tr8s4rbw5gquob2/Background.nii.gz?dl=1'}
+    files = [{'fname':'phantom_T1w.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/z0tpp56psmpo86fcahn7u/phantom_T1w.nii.gz?rlkey=p3ii0o2ya4lwy3phq9p0ftjkc&st=7kz19xv8&dl=1'},
+            {'fname':'phantom_T2w.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/o2l2bh2te10vzs1z56izd/phantom_T2w.nii.gz?rlkey=ei6ephfc72y8u4ep0w1bvq1zj&st=evls4fwm&dl=1'},
+            {'fname':'seg_ADC.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/pmf0qc9tk3t613ss9xqsu/seg_ADC.nii.gz?rlkey=evb2kb63zpv66yhth12d64lie&st=ucq6jgpn&dl=1'},
+            {'fname':'seg_BG.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/brz47of6y4snunm5omeck/seg_BG.nii.gz?rlkey=6eszykr227ghll26jbs6pf201&st=2qid8jyq&dl=1'},
+            {'fname':'seg_fiducials.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/db5cx88lv6z2rw46jsw2u/seg_fiducials.nii.gz?rlkey=echqhdav6jw3acpjp676grn0v&st=4ompzy84&dl=1'},
+            {'fname':'seg_LC.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/hr2m5mqzzzcqmi5r2hwhy/seg_LC.nii.gz?rlkey=tojw4b1vdurheox7u8iqw3pyo&st=i2etmxrb&dl=1'},
+            {'fname':'seg_phantomMask',
+            'link':'https://www.dropbox.com/scl/fi/tin0fcvt1mni3tbll5a1z/seg_phantomMask.nii.gz?rlkey=zbot4ggmca4hjmtpc1na8e6q4&st=rplsy4jc&dl=1'},
+            {'fname':'seg_SNR.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/b7516jr8nb6h1th19f1ne/seg_SNR.nii.gz?rlkey=q01be17mes45yt7ntqmmdt3sc&st=h0gmwif6&dl=1'},
+            {'fname':'seg_T1mimics.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/ozq99zdbsoooyv5z3ouvf/seg_T1mimics.nii.gz?rlkey=4bkwn0o5gzwnc7wgqutcs7r9d&st=svycvl5h&dl=1'},
+            {'fname':'seg_T2mimics.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/209of6hxdgi808m4qwl08/seg_T2mimics.nii.gz?rlkey=at6rjrzua9aluyh37rozm513n&st=l98hl6jp&dl=1'},
+            {'fname':'seg_wedges.nii.gz',
+            'link':'https://www.dropbox.com/scl/fi/4gj6kc0ufyq0lmqoahiy8/seg_wedges.nii.gz?rlkey=xo8drjz6xmb9shlumbu459onp&st=t0hfc6wv&dl=1'},
+            {'fname':'spec.json',
+             'link':'https://www.dropbox.com/scl/fi/7lyawts3x5c3htvsfc0se/spec.json?rlkey=9v98kmn7hgod59hphomltyyqw&st=r72okmox&dl=0'}
             ]
 
     # Check if folder exists
-    dl_path = os.path.join(ghost_path(), 'data')
+    dl_path = os.path.join(ghost_path(), 'data', 'Caliber137')
     if not os.path.exists(dl_path):
-        os.mkdir(dl_path)
+        os.makedirs(dl_path)
         print(f"Created folder: {dl_path}")
 
     for f in files:

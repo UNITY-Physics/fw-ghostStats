@@ -1,343 +1,539 @@
 import os
-import bids
-import ants
-import pandas as pd
-import numpy as np
+import json
+import shlex
+import shutil
+import subprocess as sp
 from datetime import datetime
+
+import ants
+import bids
 import matplotlib.pyplot as plt
-from ghost.stats import *
-from ghost.calib import *
-from ghost.phantom import *
+import nibabel as nib
+import numpy as np
+import pandas as pd
+from scipy.ndimage import center_of_mass
+from skimage.draw import disk
 
-def get_mask_nii(seg, target_BIDSImageFile, layout, verbose=False):
-    """ Retrieve or create specified segmentation mask for target image. 
-    All other functions depend on it since it is the smallest building block. 
-    Perhaps it is useful as a standalone function for the cheeky scientist.
+from .metrics import calc_psnr
+from .phantom import Caliber137
+
+DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
+
+### Helper functions ###
+def _logprint(s):
+    t = datetime.now().strftime("%H:%M:%S")
+    print(f"[{t}] {s}")
+
+def _update_layout(layout):
+    return bids.BIDSLayout(root=layout.root, derivatives=layout.derivatives['derivatives'].root)
+
+def _check_paths(fname):
+    dir = os.path.dirname(fname)
+    if not os.path.exists(dir):
+        os.makedirs(dir)
     
-    Parameters
-    ----------
-    seg : str
-        Which segmentation to use (T1, T2, ADC, fiducials, wedges).
+    return fname
 
-    target_BIDSImageFile : BIDSImageFile
-        The BIDSImageFile object to which the segmentation will be warped.
-
-    layout : BIDSLayout
-        The BIDSLayout object.
-
-    verbose : bool
-        Whether to print the status of the function. Default is False.
-
-    Returns
-    -------
-    mask_path : path
-        Path to the warped segmentation.
-
-    Example
-    -------
-    >>> project_dir = 'path/to/project/directory/that/contains/rawdata/and/derivatives'
-    >>> layout = bids.BIDSLayout(root=project_dir+'/rawdata', derivatives=project_dir+'/derivatives')
-    >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='dwi', acquisition='adc')
-    >>> for bf in bids_files:
-    >>>     mask_path = get_mask_nii('ADC', bids_files[0], layout)
-    >>>     some_custom_function(mask_path, bf.path)
-    """
-    def mask_exists(target_img, seg, layout):
-        """Check if a seg exists in the derivatives tree for a given bids image."""
-        target_entities = target_img.get_entities() # Get the entities for the target image
-        mask_entities = target_entities.copy() # Get the entities for the mask
-        mask_entities["desc"] = seg # Add the desc entity to the mask entities
-        return layout.get(scope='derivatives', **mask_entities)
-
-    # Get filename of mask
-    mask_name = target_BIDSImageFile.filename[:-10] + 'desc-' + seg + '_' + target_BIDSImageFile.entities['suffix'] + '.nii.gz'
-    deriv_path = layout.get(scope='derivatives')[0].dirname
-    mask_dir =  os.path.join(deriv_path, 'masks', f"sub-{target_BIDSImageFile.entities['subject']}")
-    try: 
-        mask_dir = os.path.join(mask_dir, f"ses-{target_BIDSImageFile.entities['session']}")
-    except KeyError:
-        pass
-    mask_dir = os.path.join(mask_dir, target_BIDSImageFile.entities['datatype'])
-    mask_path = os.path.join(mask_dir, mask_name)
-
-    if not os.path.exists(mask_dir): os.makedirs(mask_dir)
-
-    # Find out if mask already exists
-    if mask_exists(target_BIDSImageFile, seg, layout):
-        if verbose: print(f"A {seg}-mask already exists for {target_BIDSImageFile.filename}.")
-        
-        return mask_path
+def _check_run(fname, ow):
+    if (not os.path.exists(fname)) or ow:
+        return True
     else:
-        if verbose: print(f"A {seg}-mask does not exist for {target_BIDSImageFile.filename}. Molding one now.")
-        
-        suffix = target_BIDSImageFile.entities['suffix']
-        if suffix == 'T1w' or suffix == 'PDw':
-            ref = 'T1'
-        elif suffix == 'T2w' or suffix == 'FLAIR' or suffix == 'dwi':
-            ref = 'T2'
-        else: raise ValueError("The image type is not supported.")
-
-        # If the target image is ADC or b=900, use the b=0 image as the reference
-        # Otherwise, use the target image as the reference
-        acq = target_BIDSImageFile.entities['acquisition']
-        if acq == 'adc' or acq == 'b900':
-            b0_entities = target_BIDSImageFile.get_entities()
-            b0_entities['acquisition'] = 'b0'
-            target_ANTsImage = ants.image_read(layout.get(scope='raw', **b0_entities)[0].path, reorient=True)
-
-        else:
-            target_ANTsImage = ants.image_read(target_BIDSImageFile.path)
-
-        mask = warp_seg(target_img=target_ANTsImage, weighting=ref, seg=seg)
-
-        if verbose: print(f"Saving {seg} mask to {mask_path}...")
-        
-        ants.image_write(mask, mask_path)
-
-        return mask_path
-
-def bids2stats(target, seg, layout, toExcel=False, verbose=False):
-    """ Get the stats of a specific segmentation for a list of BIDS files
+        return False
     
-    Parameters
-    ----------
-    target : list of BIDSImageFiles
-        The list containing all the BIDSImageFiles to get the stats from. Can be a single file.
+def _make_fname(layout, ent):
+    return layout.build_path(ent, DERIVPATTERN, validate=False)
     
-    seg : str
-        Segmentation(s) to use (T1, T2, ADC, LC, fiducials, wedges). May also be a path to your own mask, just make sure the mask is placed in the /derivatives/masks/ folder.
+def _make_deriv_fname(layout, ent, **kwargs):
+    ent = ent.copy()
+    for k in kwargs.keys():
+        ent[k] = kwargs[k]
+    return _check_paths(_make_fname(layout.derivatives['derivatives'], ent))
 
-    layout : BIDSLayout
-        The BIDS layout to use.
+def _get_fname(layout, **kwargs):
+    return layout.build_path(kwargs, DERIVPATTERN, validate=False)
 
-    Returns
-    -------
-    stats : pandas dataframe
-        A dataframe with LabelValue, mean, min, max, variance, count, volume, session, acquisition, orientation, modality, run, segmentation.
-    
-    Example
-    -------
-    >>> project_dir = 'path/to/project/directory/that/contains/rawdata/and/derivatives'
-    >>> layout = bids.BIDSLayout(root=project_dir+'/rawdata', derivatives=project_dir+'/derivatives')
-    >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='dwi', acquisition='adc')
-    >>> stats = bids2stats(bids_files, 'ADC', layout, toExcel=False)
+def _get_seg_fname(layout, base_img, desc):
+    ent = base_img.get_entities()
+    try:
+        run = ent['run']
+    except KeyError:
+        run = None
+
+    return _get_fname(layout.derivatives['derivatives'], subject=ent['subject'], session=ent['session'], tool='ghost', 
+                            reconstruction=ent['reconstruction'], run=run, desc=desc, suffix=ent['suffix'], extension=ent['extension'])
+
+def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0GenericAffine'):
+    ent = base_img.get_entities()
+    ent['tool'] = tool
+    ent["desc"] = desc
+    ent["extension"] = extension
+    fname = _make_fname(layout.derivatives['derivatives'], ent)
+
+    return fname
+
+### Tools to use ###
+
+def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
     """
-    possible_seg = ['T1', 'T2', 'ADC', 'LC', 'fiducials', 'wedges', 'BG']
-    stats_merged = pd.DataFrame()
+    Imports DICOM files from a specified directory into the BIDS format.
 
-    for target_bf in target: # bf = BIDSFile
-        if seg in possible_seg:
-            mask_path = get_mask_nii(seg, target_bf, layout, verbose=verbose)
-        else: 
-            mask_path = seg
-            if verbose: print("Using custom mask.")
-        mask_img = ants.image_read(mask_path)
-        target_img = ants.image_read(target_bf.path)
-        
-        # Use parse_rois to get the stats and append the following entities
-        stats = parse_rois(target_img, mask_img)
-        try:
-            stats['Session'] = target_bf.entities['session']
-        except KeyError:
-            stats['Session'] = ''
-        stats['Subject'] = target_bf.entities['subject']
-        stats['Acquisition'] = target_bf.entities['acquisition']
-        stats['Modality'] = target_bf.entities['suffix']
-        if seg in possible_seg: 
-            stats['Segmentation'] = seg
-        else: 
-            stats['Segmentation'] = 'custom'
+    Args:
+        dicom_dir (str): The path to the directory containing the DICOM files.
+        sub_name (str): The subject name for the BIDS dataset.
+        ses_name (str): The session name for the BIDS dataset.
+        config (str): The path to the configuration file for dcm2bids.
+        projdir (str): The path to the project directory where the BIDS dataset will be created.
 
-        if 'run' not in target_bf.entities: 
-            stats['Run'] = 'NA'
-        else: 
-            stats['Run'] = target_bf.entities['run']
+    Returns:
+        None
+    """
 
-        if 'reconstruction' not in target_bf.entities: 
-            stats['Orientation'] = 'NA'
-        else: 
-            stats['Orientation'] = target_bf.entities['reconstruction']
+    cmd = f'dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
+    sp.Popen(shlex.split(cmd)).communicate()
 
-        if stats_merged.empty: 
-            stats_merged = stats
-        else: 
-            stats_merged = pd.concat([stats_merged, stats], ignore_index=True)
+def setup_bids_directories(projdir):
+    """
+    Set up the necessary BIDS directories and files for a project.
 
-    stats_merged = stats_merged.sort_values(by=['Subject','Session', 'Segmentation', 'LabelValue', 'Run', 'Acquisition', 'Orientation', 'Modality'])
+    Args:
+        projdir (str): The path to the project directory.
 
-    if toExcel: # save stats to the derivatives folder as an excel file
-        acq_labels = '_'.join(stats_merged['Acquisition'].unique())
-        rec_labels = '_'.join(stats_merged['Orientation'].unique())
-        mod_labels = '_'.join(stats_merged['Modality'].unique())
-        seg_label = str(seg if seg in possible_seg else 'custom')
-        # Get filename of stats file
-        stats_name = 'acq-' + acq_labels + '__rec-' + rec_labels + '__desc-' + seg_label + '__' + mod_labels + '.xlsx'
-        # print(f"Stats name: {stats_name}")
-        stats_dir =  mask_path.split("/masks/")[0] + '/stats'
-        # print(f"Stats directory: {stats_dir}")
-        stats_path = stats_dir + '/' + stats_name
+    Returns:
+        None
+    """
 
-        # Create the stats directory if it doesn't exist
-        if not os.path.exists(stats_dir): os.makedirs(stats_dir)
 
-        # Save the stats to an excel file
-        stats_merged.to_excel(stats_path, index=False)
-
-    return stats_merged
-
-def plot_mimics(target, layout, toFile=True, verbose=False):
-    """ Plot the T2, ADC, and T1 ROIs for a list of BIDS files
+    # Check for basic folders
+    for f in ['rawdata', 'derivatives']:
+        if not os.path.exists(f'{projdir}/{f}'):
+            os.makedirs(f'{projdir}/{f}')
     
-    Parameters
-    ----------
-    target : list of BIDSImageFiles
-        The list containing all the BIDSImageFiles to get the stats from. Can be a single file.
+    # Check for dataset description
+    if not os.path.exists(f'{projdir}/rawdata/dataset_description.json'):
+        D = {"Name": "GHOST phantom rawdata", "BIDSVersion": "1.0.2"}
+        with open(f'{projdir}/rawdata/dataset_description.json', 'w') as f:
+            json.dump(D,f)
+    
+    if not os.path.exists(f'{projdir}/derivatives/dataset_description.json'):
+        D = {"Name": "Ghost derivatives dataset", "BIDSVersion": "1.0.2", "GeneratedBy": "GHOST"}
+        with open(f'{projdir}/derivatives/dataset_description.json', 'w') as f:
+            json.dump(D,f)
 
-    layout : BIDSLayout
-        The BIDS layout to use.
+def warp_mask(layout, bids_img, seg, phantom, weighting='T2w', ow=False):
+    """
+    Warps a segmentation mask to the space of a given image using ANTs registration.
 
-    toFile : bool, optional (default: True)
-        If True, the plot will be saved to a png file.
+    Parameters:
+    layout (Layout): The BIDSLayout object representing the BIDS dataset.
+    bids_img (BIDSImage): The BIDSImage object representing the input image.
+    seg (str): The name of the segmentation mask to be warped.
+    phantom (Phantom): The Phantom object representing the phantom used for registration.
+    weighting (str, optional): The weighting scheme to be used during registration. Defaults to 'T2w'.
+    ow (bool, optional): Flag indicating whether to overwrite existing results. Defaults to False.
 
-    Returns
-    -------
+    Returns:
     None
-
-    Example
-    -------
-    >>> project_dir = 'path/to/project/directory/that/contains/rawdata/and/derivatives'
-    >>> layout = bids.BIDSLayout(root=project_dir+'/rawdata', derivatives=project_dir+'/derivatives')
-    >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='T1w') # Get all T1 and T2 images
-    >>> bids_files = bids_files[:3] # Only use the first 3 files to save some time
-    >>> plot_mimics(bids_files, layout) # Boom! You have a plot!
     """
-    labels = ['T2', 'ADC', 'T1']
-    masks = {}
-    for i, target_bf in enumerate(target):
-        for l in labels:
-            mask_path = get_mask_nii(l, target_bf, layout, verbose)
-            masks[l] = ants.image_read(mask_path, reorient=True).numpy()
-        target_img = ants.image_read(target_bf.path, reorient=True)
+    
+    fname_aff = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
+    fname_syn = _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1InverseWarp')
+    xfm_calculated = False
+
+    if ow:
+        xfm_calculated = False
+    elif os.path.exists(fname_syn) and os.path.exists(fname_aff):
+        xfm = [fname_aff, fname_syn]
+        xfm_calculated = True
+        print("xfm already calculated")
+    else:
+        xfm = None
+     
+    fname_out = _make_deriv_fname(layout, bids_img.get_entities(), desc=f'seg{seg}', tool='ghost')
+
+    if _check_run(fname_out, ow):
+        seg_warp, xfm_out = phantom.warp_seg(ants.image_read(bids_img.path), seg, xfm, weighting)
+
+        ants.image_write(seg_warp, _check_paths(fname_out))
+
+        if not xfm_calculated:
+            _check_paths(fname_aff)
+            shutil.copy(xfm_out[0], fname_aff)
+            shutil.copy(xfm_out[1], fname_syn)
+
+def get_seg_loc(layout, bids_img, seg, phantom, offset=0):
+    
+    fname = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
+    tx = ants.read_transform(fname)
+    z = phantom.get_phantom_location(seg) + offset
+    p = [*tx.apply_to_point([0,0,z]), 1]
+    affine = bids_img.get_image().affine
+    ijk = np.linalg.inv(affine) @ p
+    return ijk, p[:3]
+
+def refine_mimics_2D_sag():
+    return True
+
+def refine_mimics_2D_cor():
+    return True
+
+def refine_mimics_2D(layout, bids_img, seg, phantom, ow=False):
+    
+    # Define the output
+    ent = bids_img.get_entities()
+    fname_2D = _make_deriv_fname(layout, ent, tool='ghost', desc=f'seg{seg}2D')
+
+    if _check_run(fname_2D, ow):
+        # Get slice with largest radius
+        dx,dy,dz = ants.image_read(bids_img.path).spacing
         
-        plt.style.use("dark_background")
-        fig = plt.figure(figsize=(8, 3))
-        cmaps = ['Reds', 'Wistia', 'Greens']
-        for i, l in enumerate(labels):
-            masks[l][masks[l] == 0] = np.nan
-            fig.add_subplot(1,3,i+1)
-            # Check acquisition and reconstruction to determine which slices to plot
-            acq = target_bf.entities['acquisition']
-            suf = target_bf.entities['suffix']
-            rec = target_bf.entities['reconstruction']
+        my_k = 0
+        my_r = 0
+        
+        mimic_radius_mm = int(phantom.get_specs()['Sizes'][seg])/2
+        mimic_radius_vox = mimic_radius_mm/dx
+
+        ijk, xyz_ref = get_seg_loc(layout, bids_img, seg, phantom, offset=0)
+        z0 = xyz_ref[2]
+        print(ijk)
+        print(xyz_ref)
+        klist = [int(np.floor(ijk[2])), int(np.ceil(ijk[2]))]
+        
+        for k0 in klist:
+            # Figure out which z position we are at relative to center of the sphere
+            z1 = (bids_img.get_image().affine @ np.array([0,0,k0,1]))[2]
             
-            if acq == 'adc': # suf == 'dwi' and rec == axi, always
-                slices = [12, 17, 23]
-            elif rec == 'axi':
-                    slices = [14, 18, 25]
-            # rec == 'cor' or rec == 'sag'
-            elif acq == 'gw' or acq == 'fast':
-                    slices = [43, 58, 79]                            
-            elif acq == 'std':
-                    if suf == 'FLAIR':
-                        slices = [40, 55, 74]
-                    elif suf == 'T1w':
-                        slices = [43, 58, 79]
-                    elif suf == 'T2w':
-                        if rec == 'cor':
-                            slices = [46, 62, 84]
-                        elif rec == 'sag':
-                            slices = [52, 68, 90]
+            if mimic_radius_vox**2 > (z0 - z1)**2:
+                pv_rad = np.sqrt(mimic_radius_vox**2 - (z0 - z1)**2)
+            else:
+                pv_rad = 0
+            
+            if pv_rad > my_r:
+                my_k = k0
+                my_r = pv_rad
 
-            plt.imshow(target_img[:,:,slices[i]], cmap='gray', aspect=target_img.spacing[0]/target_img.spacing[1])
-            # plt.imshow(masks[l][:,:,slices[i]], cmap=cmaps[i], alpha=0.5, aspect=target_img.spacing[0]/target_img.spacing[1])
-            plt.title(l)
-            plt.axis('off')
-        suptitle = fig.suptitle(target_bf.filename[:-7], fontsize=12)
-        plt.tight_layout()
-
-        if not toFile:
-            pass
+        seg_img = ants.image_read(_get_seg_fname(layout, bids_img, desc=f'seg{seg}'))
         
-        # Save the figure to derivatives/images
-        img_name = target_bf.filename[:-10] + 'desc-mimics' + '_' + target_bf.entities['suffix'] + '.png'
-        img_dir = layout.get(scope='derivatives')[0].dirname + '/qa/sub-' + target_bf.entities['subject'] + '/ses-' + target_bf.entities['session'] + '/' + target_bf.entities['datatype']
-        img_path = img_dir + '/' + img_name
+        new_seg = np.zeros(seg_img.shape[0:2])
+        for i in range(1,15):
+            com = center_of_mass(seg_img.numpy()==i)
+            d = disk([com[0], com[1]], my_r, shape=seg_img.shape[0:2])
+            new_seg[d] = i
 
-        if not os.path.exists(img_dir):
-            os.makedirs(img_dir)
+        refined_seg = np.zeros(seg_img.shape)
+        refined_seg[...,my_k] = new_seg
+        refined_seg_img = ants.from_numpy(refined_seg, origin=seg_img.origin, direction=seg_img.direction, spacing=seg_img.spacing)
 
-        plt.savefig(img_path)
+        # Make new filenames
+        ants.image_write(refined_seg_img, fname_2D)
 
-def plot_signal_ROI(target, seg, layout, verbose=False):
-    """ Plot the signal in different ROIs...
+        return refined_seg_img
+
+    else:
+        return ants.image_read(fname_2D)
+
+def find_best_slice(layout, bids_img, seg, slthick=5):
+    z = []
+    for i in [-1,0,1]:
+        z.append*get_seg_loc(layout, bids_img, seg)
     
-    Parameters
-    ----------
-    target : list of BIDSImageFiles
-        A list containing all the BIDSImageFiles from different dates to get the stats from.
+def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=False):
+    """
+    Get fiducials segmentation from an input image.
 
-    seg : str
-        The name of the segmentation to use.
+    Parameters:
+    - layout (object): The BIDSLayout object representing the BIDS dataset.
+    - bids_img (object): The BIDSImageFile object representing the input image.
+    - phantom (object): The Phantom object representing the phantom used for fiducial segmentation.
+    - resample_res (list, optional): The resolution to resample the input image to. Defaults to [1.0, 1.0, 1.0].
+    - ow (bool, optional): Flag indicating whether to overwrite existing results. Defaults to False.
 
-    layout : BIDSLayout
-        The BIDS layout to use.
+    Returns:
+    - None
 
-    Returns
-    -------
-    None
-
-    Example
-    -------
-    >>> project_dir = 'path/to/project/directory/that/contains/rawdata/and/derivatives'
-    >>> layout = bids.BIDSLayout(root=project_dir+'/rawdata', derivatives=project_dir+'/derivatives')
-    >>> bids_files = layout.get(scope='raw', extension='.nii.gz', suffix='dwi', acquisition='adc')
-    >>> plot_signal_ROI(bids_files, 'ADC', layout)
+    This function performs the following steps:
+    1. Interpolates swoop data if necessary.
+    2. Checks for registration to template and creates a new transformation matrix if necessary.
+    3. Runs phantom.fiducial_segmentation on the input image.
+    4. Writes the fiducials and fiducial labels as output images.
+    5. Saves the new transformation matrices to the BIDs structure.
     """
 
-    def convert_date(date_str): # Convert Session label from YYYYMMDD to DD/MM
-        date_obj = datetime.strptime(date_str, '%Y%m%d')
-        return date_obj.strftime('%d/%m')
+    ent = bids_img.get_entities()
+    ent["reconstruction"] = ent["reconstruction"]+'Interp'
+    fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFid')
 
-    # Get the stats for the target files and specified segmentation
-    stats = bids2stats(target, seg, layout, toExcel=False, verbose=verbose)
+    if _check_run(fid_fname_out, ow):
 
-    # If the 'Run' column in stats contains more than 'NA' values, group 'em together.
-    if len(stats[stats['Run'] != 'NA']) > 0:
-        # group by 'Session' and 'LabelValue' and compute the mean and standard deviation
-        stats_grouped = stats.groupby(['Session', 'LabelValue', 'Acquisition'])
-        stats_mean = stats_grouped.agg({'Mean': 'mean'})
-        stats_mean['Std'] = stats_grouped['Mean'].std()
-        stats_mean['Run'] = '1,2,3'
-        stats = stats_mean.reset_index()
+        # Interpolate swoop data
+        interp_fname = _make_deriv_fname(layout, ent, tool='ghost')
+        
+        if os.path.exists(interp_fname) and (not ow):
+            swoop_img = ants.image_read(interp_fname)
+        else:
+            print(f"Resampling input image to {resample_res}")
+            swoop_img = ants.resample_image(ants.image_read(bids_img.path), resample_params=resample_res, use_voxels=False, interp_type=4)
+            ants.image_write(swoop_img, interp_fname)
+        
+        # Check for registration to template
+        new_xfm = False
+        xfm_fname = _make_deriv_fname(layout, ent, extension='mat', desc='Fiducials0GenericAffine', tool='ants')
+        
+        if os.path.exists(xfm_fname) and (not ow):
+            xfm = xfm_fname
+        else:
+            new_xfm = True
+            xfm = None
 
-    fig = plt.figure(figsize=(10, 12))
-    fig.add_subplot(2, 1, 1)
-    for s in stats['Session'].unique():
-        df = stats[stats['Session'] == s]
-        plt.plot(df['LabelValue'], df['Mean'], label=convert_date(s))
+        # Run fiducial segmentation
+        fiducials, fiducial_labels, xfm, refined_xfm = phantom.segment_fiducials(swoop_img, xfm=xfm, weighting='T2w', 
+                                                                       binarize_threshold=0.5, verbose=True)
+        
+        # Write outputs
+        ants.image_write(fiducials, _check_paths(fid_fname_out))
 
-        if df['Acquisition'].item == 'adc':
-            plt.fill_between(df['LabelValue'], df['Mean'] - df['Std'], df['Mean'] + df['Std'], alpha=0.33)
+        fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFidLabels')
+        ants.image_write(fiducial_labels, _check_paths(fid_fname_out))
 
-    plt.xlabel('Mimic')
-    plt.xticks(np.arange(1, 15, 1))
-    plt.xlim([1, 14])
-    plt.ylabel('Mean Intensity')
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
 
-    fig.add_subplot(2, 1, 2)
-    for lv in stats['LabelValue'].unique():
-        df = stats[stats['LabelValue'] == lv]
-        df['Session'] = df['Session'].apply(convert_date)
-        plt.plot(df['Session'], df['Mean'], label=int(lv))
+        if new_xfm:
+            _check_paths(xfm_fname)
+            shutil.copy(xfm, xfm_fname)
 
-        if df['Acquisition'].item == 'adc':
-            plt.fill_between(df['Session'], df['Mean'] - df['Std'], df['Mean'] + df['Std'], alpha=0.33)
+        for i,x in enumerate(refined_xfm):
+            xfm_fname = _make_deriv_fname(layout, ent, extension='mat', desc=f'Fiducials0GenericAffine{i}', tool='ants')
+            shutil.copy(x, xfm_fname)
 
-    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-    plt.xlabel('Date')
-    plt.ylabel('Mean Intensity')
-    plt.xlim([np.min(df['Session']), np.max(df['Session'])])
-    fig.suptitle(f"{seg}-mimics", fontsize=16)
-    plt.tight_layout()
-    plt.style.use("dark_background")
+def warp_thermo(layout, temp_bids_img, t2_bids_img, ow=False):
+    
+    out_fname = _make_deriv_fname(layout, temp_bids_img.get_entities(), tool='ghost', desc='regT2wN4')
+
+    if _check_run(out_fname, ow):
+        moving = ants.image_read(temp_bids_img.path)
+        fixed = ants.image_read(t2_bids_img.path)
+        reg = ants.registration(fixed, moving, type_of_transform='antsRegistrationSyN[s]')
+        
+        phantom_mask = ants.image_read(_make_deriv_fname(layout, t2_bids_img.get_entities(), desc=f'segphantomMask', tool='ghost'))
+        N4 = ants.n4_bias_field_correction(ants.denoise_image(reg['warpedmovout'], mask=phantom_mask), mask=phantom_mask, return_bias_field=True)
+        
+        ants.image_write(reg['warpedmovout']/N4, out_fname)
+
+def get_temperature(layout, thermo, phantom, plot_on=False):
+    ent = thermo.get_entities()
+    LC = layout.get(scope='derivatives', subject=ent['subject'], session=ent['session'], desc='segLC')[0].path
+
+    if plot_on:    
+        temperature, fig = phantom.loglike_temp(thermo, LC, plot_on)
+        fig.show()
+    else:
+        temperature = phantom.loglike_temp(thermo, LC, plot_on)
+    
+    fname = _make_deriv_fname(layout, ent, extension='.txt', tool='stats', desc='temperature')
+    with open(fname, 'w') as f:
+        f.write(str(temperature))    
+
+    return temperature
+
+def calc_runs_psnr(layout, bids_img, ow=False):
+    """
+    Calculate the Peak Signal-to-Noise Ratio (PSNR) between two runs of an image.
+
+    Parameters:
+    layout (Layout): The BIDSLayout object representing the BIDS dataset.
+    bids_img (BIDSImage): The BIDSImage object representing the image.
+    ow (bool, optional): If True, overwrite existing PSNR file. Default is False.
+
+    Returns:
+    float: The calculated PSNR value.
+
+    Raises:
+    None
+
+    """
+
+    ent = bids_img.get_entities()
+    fname = _make_deriv_fname(layout, ent, extension='.txt', tool='stats', desc='PSNR')
+
+    if _check_run(fname, ow):
+
+        img1 = layout.get(scope='raw', extension='.nii.gz', 
+                    subject=ent['subject'], reconstruction=ent['reconstruction'], 
+                    session=ent['session'], run=1)[0].path
+        
+        img2 = layout.get(scope='raw', extension='.nii.gz', 
+                    subject=ent['subject'], reconstruction=ent['reconstruction'], 
+                    session=ent['session'], run=2)[0].path
+        
+        phmask = layout.get(scope='derivatives', extension='.nii.gz', 
+                    subject=ent['subject'], reconstruction=ent['reconstruction'], 
+                    session=ent['session'], run=1, desc='segphantomMask')[0].path
+
+        PSNR = calc_psnr(ants.image_read(img1), ants.image_read(img2), ants.image_read(phmask))
+        with open(fname, 'w') as f:
+            f.write(str(PSNR))
+
+        return PSNR
+
+def parse_fiducial_positions(layout, img, phantom, ow=False):
+    """
+    Parse fiducial positions from an image and calculate the differences between the parsed positions and reference positions.
+
+    Parameters:
+    - layout (Layout): The BIDSLayout object representing the layout of the dataset.
+    - img (Image): The image object from which to parse the fiducial positions.
+    - phantom (Phantom): The phantom object containing the reference fiducial locations.
+    - ow (bool): Flag indicating whether to overwrite existing files. Default is False.
+
+    Returns:
+    - positions (ndarray): A numpy array containing the parsed fiducial positions.
+
+    """
+
+    ent = img.get_entities()
+    
+    try:
+        run = ent['run']
+    except KeyError:
+        run = None
+    
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='FidPos')
+    
+    if _check_run(fname, ow):
+        seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
+                        session=ent['session'], desc='segRegFid', run=run, reconstruction=ent['reconstruction']+"Interp")[0]
+
+        fiducials = ants.image_read(seg.path)
+        ent = seg.get_entities()
+
+        affine = np.array(phantom.get_specs()['FiducialAffine'])
+
+        # True space positions
+        positions = np.zeros([3,15])
+        for i in range(15):
+            p = ants.get_center_of_mass(ants.slice_image(fiducials, axis=3, idx=i))
+
+            # The affine we get is from 3T to Swoop space
+            xfm = ants.read_transform(layout.get(scope='derivatives', suffix='T2w', run=run, subject=ent['subject'], 
+                                                reconstruction=ent['reconstruction'], session=ent['session'], desc=f'Fiducials0GenericAffine{i}')[0])
+            p_3T = np.array([*xfm.apply_to_point(p),1])
+            p_ref = (affine @ p_3T)[:3]
+            positions[:,i] = p_ref
+
+        ref_pos = phantom.get_ref_fiducial_locations()
+        label = np.arange(1,16)
+        df = pd.DataFrame(label, columns=['label'])
+        df['X'] = positions[0,:]
+        df['Y'] = positions[1,:]
+        df['Z'] = positions[2,:]
+        df['refX'] = ref_pos[0,:]
+        df['refY'] = ref_pos[1,:]
+        df['refZ'] = ref_pos[2,:]
+        df['diffX'] = df['X']-df['refX']
+        df['diffY'] = df['Y']-df['refY']
+        df['diffZ'] = df['Z']-df['refZ']
+        
+        fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='FidPos')
+        df.to_csv(fname)
+
+        return positions
+
+def get_intensity_stats(layout, bids_img, seg_name, ow=False):
+    """
+    Calculate intensity statistics for a given image and segmentation.
+
+    Parameters:
+    - layout (Layout): The BIDSLayout object representing the BIDS dataset.
+    - bids_img (BIDSImage): The BIDSImage object representing the input image.
+    - seg_name (str): The name of the segmentation.
+    - ow (bool): Flag indicating whether to overwrite existing files (default: False).
+
+    Returns:
+    None
+    """
+
+    ent = bids_img.get_entities()
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc=seg_name)
+    
+    try:
+        run = ent['run']
+    except KeyError:
+        run = None
+    
+    if _check_run(fname, ow):
+        seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], session=ent['session'],
+                        run=run, reconstruction=ent['reconstruction'], desc=seg_name)[0]
+        
+        df = ants.label_stats(ants.image_read(bids_img.path), ants.image_read(seg.path))
+        df = df.drop(df[df['LabelValue'] == 0.0].index)
+        df.drop(['t', 'Count', 'Mass'], axis=1, inplace=True)
+        df.reset_index(inplace=True, drop=True)
+        df.to_csv(fname)
+ 
+def unity_qa_process_subject(layout, sub, ses):
+    """
+    Process the Unity QA data for a subject.
+
+    Args:
+        layout (Layout): The BIDS Layout object.
+        sub (str): The subject ID.
+        ses (str): The session ID.
+
+    Returns:
+        None
+    """
+    
+    phantom = Caliber137()
+    axi1 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=1)[0]
+    axi2 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=2)[0]
+    sag = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='sag', session=ses)[0]
+    cor = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='cor', session=ses)[0]
+    fisp = layout.get(scope='raw', extension='.nii.gz', subject=sub, suffix='PDw', session=ses)[0]
+
+    _logprint(f'Starting for {sub}-{ses}')
+    
+    # Warp the masks
+    _logprint("--- Warping masks ---")
+    for img in [axi1, axi2, sag, cor]:
+        _logprint(img.filename)
+        for mask in ['T1mimics', 'T2mimics', 'ADC', 'LC', 'phantomMask', 'SNR']:
+            _logprint(mask)
+            warp_mask(layout, img, mask, phantom, ow=False)
+            
+    layout = _update_layout(layout)
+
+    # T1, T2, ADC arrays
+    _logprint("Refining masks to 2D and getting intensity stats")
+    for img in [axi1, axi2, sag, cor]:
+        _logprint(img.filename)
+        for mask in ['T1mimics', 'T2mimics', 'ADC']:
+            refine_mimics_2D(layout, img, mask, phantom, ow=False)
+            
+            layout = _update_layout(layout)
+            get_intensity_stats(layout, img, f"seg{mask}", ow=False)
+    
+    layout = _update_layout(layout)
+    
+    # Fiducials
+    _logprint("Getting fiducial arrays")
+    for img in [axi1, axi2, sag, cor]:
+        _logprint(img.filename)
+        get_fiducials(layout, img, phantom, ow=False)
+
+    layout = _update_layout(layout)
+
+    # Fiducial positions
+    _logprint("Parsing fiducial locations")
+    for img in [axi1, axi2, sag, cor]:
+        _logprint(img.filename)
+        parse_fiducial_positions(layout, img, phantom, ow=False)
+
+    # PSNR
+    _logprint("Calculating PSNR")
+    calc_runs_psnr(layout, axi1, ow=False)
+
+    # Tempearture
+    _logprint("Getting temperature")
+    warp_thermo(layout, fisp, axi1, ow=False)
+    layout = _update_layout(layout)
+
+    thermo = layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0]
+    get_temperature(layout, thermo, phantom)

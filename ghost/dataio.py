@@ -6,6 +6,9 @@ import ants
 import nibabel as nib
 import numpy as np
 import os
+from bids.layout.models import BIDSImageFile
+from nibabel.nifti1 import Nifti1Image
+from numpy import ndarray
 
 def load_4D_nifti(img, vol=None, mag=False):
 
@@ -36,3 +39,15 @@ def get_nifti_basename(fname):
         bname, ext = os.path.splitext(bname)
     return bname
 
+
+def _get_image(x):    
+    if type(x) == str:
+        return ants.image_read(x)
+    if type(x) == BIDSImageFile:
+        return ants.image_read(x.path)
+    if type(x) == Nifti1Image:
+        return ants.from_nibabel(x)
+    if type(x) == ndarray:
+        return ants.from_numpy(x)
+    else:
+        return x
