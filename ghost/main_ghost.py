@@ -11,7 +11,7 @@ import requests
 
 from .dataio import get_nifti_basename, load_4D_nifti
 from .misc import ghost_path
-from .phantom import warp_seg
+# from .phantom import warp_seg
 
 
 def main():
