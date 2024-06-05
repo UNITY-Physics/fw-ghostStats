@@ -33,3 +33,11 @@ unity_qa_process_subject(layout, sub, ses)
 ```
 
 The `layout` object is really handy to work with since it will give us keyword access to filenames in our project and throw errors if they don't exist.
+
+## 3. Review the results
+
+Have a look at the `plotting.ipynb` for some examples of visualizing the data. The `stats` folder does contain numerical results as well that can be parsed. Baring in mind that there might be some bugs in there still.
+
+## Other
+
+The notebook `describe_fid_seg.ipynb` goes through the steps of the fiducial segmentation.
