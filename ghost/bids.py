@@ -192,6 +192,9 @@ def refine_mimics_2D(layout, bids_img, seg, phantom, ow=False):
         mimic_radius_mm = int(phantom.get_specs()['Sizes'][seg])/2
         mimic_radius_vox = mimic_radius_mm/dx
 
+        ijk, xyz_ref = phantom.get_seg_location(affine=bids_img.get_image().affine, seg=seg, 
+                                                xfm_fname= _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine'), 
+                                                offset=0)
         ijk, xyz_ref = get_seg_loc(layout, bids_img, seg, phantom, offset=0)
         z0 = xyz_ref[2]
         print(ijk)

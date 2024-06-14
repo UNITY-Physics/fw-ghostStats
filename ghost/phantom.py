@@ -9,6 +9,7 @@ from scipy import ndimage as ndi
 import matplotlib.pyplot as plt
 from scipy.ndimage import center_of_mass, distance_transform_edt
 from tqdm import tqdm
+from skimage.draw import disk
 
 from .misc import ghost_path
 from .metrics import calc_psnr
@@ -47,7 +48,7 @@ class Phantom():
             return _check_fname(os.path.join(self.path, f'phantom_{weighting}.nii.gz'))
         
         
-    def reg_to_phantom(self, target_img, phantom_weighting='T1', mask='phantomDilMask'):
+    def reg_to_phantom(self, target_img, phantom_weighting='T1', mask='phantomMask'):
         """Get transformation object from target image to reference image
         
         Parameters
@@ -240,6 +241,55 @@ class Caliber137(Phantom):
             return my_temperature, fig
 
         return my_temperature
+
+    def get_seg_z_location(self, img_affine, seg_name, xfm_fname, offset=0):
+        tx = ants.read_transform(xfm_fname)
+        z = self.get_phantom_location(seg_name) + offset
+        p = [*tx.apply_to_point([0,0,z]), 1]
+        ijk = np.linalg.inv(img_affine) @ p
+        
+        return ijk, p[:3]
+
+    def mimic_3D_to_2D_axial(self, seg_img, seg_name, xfm_fname, radius):
+        dx,dy,dz = seg_img.spacing
+        
+        my_k = 0
+        my_r = 0
+        
+        # mimic_radius_mm = int(self.get_specs()['Sizes'][seg_name])/2
+        mimic_radius_vox = int(radius)/dx
+        
+        img_affine = seg_img.to_nibabel().affine
+        ijk, xyz_ref = self.get_seg_z_location(img_affine, seg_name, xfm_fname, offset=0)
+        z0 = xyz_ref[2]
+
+        klist = [int(np.floor(ijk[2])), int(np.ceil(ijk[2]))]
+        
+        for k0 in klist:
+            # Figure out which z position we are at relative to center of the sphere
+            z1 = (img_affine @ np.array([0,0,k0,1]))[2]
+            
+            if mimic_radius_vox**2 > (z0 - z1)**2:
+                pv_rad = np.sqrt(mimic_radius_vox**2 - (z0 - z1)**2)
+            else:
+                pv_rad = 0
+            
+            if pv_rad > my_r:
+                my_k = k0
+                my_r = pv_rad
+        
+        new_seg = np.zeros(seg_img.shape[0:2])
+
+        for i in range(1,15):
+            com = center_of_mass(seg_img.numpy()==i)
+            d = disk([com[0], com[1]], my_r, shape=seg_img.shape[0:2])
+            new_seg[d] = i
+
+        refined_seg = np.zeros(seg_img.shape)
+        refined_seg[...,my_k] = new_seg
+        refined_seg_img = ants.from_numpy(refined_seg, origin=seg_img.origin, direction=seg_img.direction, spacing=seg_img.spacing)
+        
+        return refined_seg_img
 
     def get_ref_fiducial_locations(self):
         """
