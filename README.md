@@ -4,15 +4,10 @@ Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phant
 
 ## Install
 
-This is a simple pip package which you can install with
+Install the package and download the dependencies
 
 ```sh
 python -m pip install -e .
-```
-
-Then you also need to download the reference data using
-
-```sh
 ghost setup
 ```
 
@@ -44,11 +39,6 @@ See [examples/unity_QA/](UNITY QA description)
 - Images are treated as `antspyx` image objects. This simplifies working with transformations, image arrays while maintaining information about geometry etc.
 - To query BIDS datasets, we use [pybids](https://bids-standard.github.io/pybids/api.html#bids-layout-querying-bids-datasets). See 'GHOST_demo.ipynb' for short demonstration. Functions in 'bids.py' can be integrated in more thorough analysis.
 
-## Converting DICOM library to BIDS-compatible NIFTI tree
+## Containerized
 
-dcm2bids converts DICOM files into a structured, standardized format that includes detailed metadata. See more about [BIDS](https://bids-specification.readthedocs.io/en/stable/02-common-principles.html).
-
-
-## Useful features
-
-- Parse and plot information in the reference measurement sheet for the phantom ([Notebook example](phantom_characteristics.ipynb))
+In progress. Watch this space...
