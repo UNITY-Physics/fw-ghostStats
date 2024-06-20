@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ghost"
+version = "0.1.0"
+description = "Ghost"
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [
+  {name = "Emil Ljungberg", email = "emil.ljungberg@med.lu.se"},
+]
+maintainers = [
+  {name = "Emil Ljungberg", email = "emil.ljungberg@med.lu.se"},
+]
+
+# Specify your dependencies here
+dependencies = [
+    "antspyx",
+    "matplotlib",
+    "nibabel",
+    "numpy",
+    "openpyxl",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "pydicom",
+    "pybids"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "sphinx>=3.2.1"
+]
+
+# If your project is a package, specify the packages to include
+[tool.setuptools.packages.find]
+where = ["ghost"]
+
+[project.urls]
+# homepage = "https://your.project.homepage"
+repository = "https://github.com/UNITY-Physics/GHOST"
+# documentation = "https://your.project.documentation"
+
+[project.license]
+text = "MIT"
+
+[project.scripts]
+ghost = "ghost.main_ghost:main"
