@@ -20,12 +20,17 @@ from .phantom import Caliber137
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 
 ### Helper functions ###
+
 def _logprint(s):
     t = datetime.now().strftime("%H:%M:%S")
     print(f"[{t}] {s}")
 
+def copy_file(fsource, fdest):
+    shutil.copy(fsource, _check_paths(fdest))
+
 def _update_layout(layout):
     return bids.BIDSLayout(root=layout.root, derivatives=layout.derivatives['derivatives'].root)
+
 
 def _check_paths(fname):
     dir = os.path.dirname(fname)
@@ -34,23 +39,28 @@ def _check_paths(fname):
     
     return fname
 
+
 def _check_run(fname, ow):
     if (not os.path.exists(fname)) or ow:
         return True
     else:
         return False
     
+
 def _make_fname(layout, ent):
     return layout.build_path(ent, DERIVPATTERN, validate=False)
     
+
 def _make_deriv_fname(layout, ent, **kwargs):
     ent = ent.copy()
     for k in kwargs.keys():
         ent[k] = kwargs[k]
     return _check_paths(_make_fname(layout.derivatives['derivatives'], ent))
 
+
 def _get_fname(layout, **kwargs):
     return layout.build_path(kwargs, DERIVPATTERN, validate=False)
+
 
 def _get_seg_fname(layout, base_img, desc):
     ent = base_img.get_entities()
@@ -61,6 +71,7 @@ def _get_seg_fname(layout, base_img, desc):
 
     return _get_fname(layout.derivatives['derivatives'], subject=ent['subject'], session=ent['session'], tool='ghost', 
                             reconstruction=ent['reconstruction'], run=run, desc=desc, suffix=ent['suffix'], extension=ent['extension'])
+
 
 def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0GenericAffine'):
     ent = base_img.get_entities()
@@ -91,6 +102,7 @@ def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
     cmd = f'dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
     sp.Popen(shlex.split(cmd)).communicate()
 
+
 def setup_bids_directories(projdir):
     """
     Set up the necessary BIDS directories and files for a project.
@@ -119,46 +131,45 @@ def setup_bids_directories(projdir):
         with open(f'{projdir}/derivatives/dataset_description.json', 'w') as f:
             json.dump(D,f)
 
-def warp_mask(layout, bids_img, seg, phantom, weighting='T2w', ow=False):
-    """
-    Warps a segmentation mask to the space of a given image using ANTs registration.
 
-    Parameters:
-    layout (Layout): The BIDSLayout object representing the BIDS dataset.
-    bids_img (BIDSImage): The BIDSImage object representing the input image.
-    seg (str): The name of the segmentation mask to be warped.
-    phantom (Phantom): The Phantom object representing the phantom used for registration.
-    weighting (str, optional): The weighting scheme to be used during registration. Defaults to 'T2w'.
-    ow (bool, optional): Flag indicating whether to overwrite existing results. Defaults to False.
-
-    Returns:
-    None
-    """
-    
-    fname_aff = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
-    fname_syn = _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1InverseWarp')
-    xfm_calculated = False
-
-    if ow:
-        xfm_calculated = False
-    elif os.path.exists(fname_syn) and os.path.exists(fname_aff):
-        xfm = [fname_aff, fname_syn]
-        xfm_calculated = True
-        print("xfm already calculated")
-    else:
-        xfm = None
-     
+def warp_mask(layout, bids_img, seg, phantom, xfm_type='SyN', weighting='T2w', ow=False):
+        
     fname_out = _make_deriv_fname(layout, bids_img.get_entities(), desc=f'seg{seg}', tool='ghost')
 
+    if xfm_type.lower() == 'syn':
+        xfm = [_get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine'),
+               _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1InverseWarp')]
+    else:
+        xfm = [_get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')]
+
     if _check_run(fname_out, ow):
-        seg_warp, xfm_out = phantom.warp_seg(ants.image_read(bids_img.path), seg, xfm, weighting)
-
+        seg_warp = phantom.warp_seg(target_img=ants.image_read(bids_img.path), xfm=xfm, seg=seg)
         ants.image_write(seg_warp, _check_paths(fname_out))
+            
 
-        if not xfm_calculated:
-            _check_paths(fname_aff)
-            shutil.copy(xfm_out[0], fname_aff)
-            shutil.copy(xfm_out[1], fname_syn)
+def reg_img(layout, bids_img, phantom, reg_type='Rigid', weighting='T2w', ow=False):
+    
+    _logprint(f'Calculating {reg_type} transformation to template')
+    
+    fname_aff = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
+    fname_InvSyn = _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1InverseWarp')
+    fname_FwdSyn = _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1Warp')
+
+    if _check_run(fname_aff, ow):
+
+        inv_xfm, fwd_xfm = phantom.reg_to_phantom(ants.image_read(bids_img.path), reg_type=reg_type, weighting=weighting)
+        
+        _logprint(f'Done. {inv_xfm}')
+        copy_file(inv_xfm[0], fname_aff)
+        
+        if len(inv_xfm) > 1:
+            
+            copy_file(inv_xfm[1], fname_InvSyn)
+            copy_file(fwd_xfm[0], fname_FwdSyn)
+    
+    else:
+        print("xfm already calculated")
+        
 
 def get_seg_loc(layout, bids_img, seg, phantom, offset=0):
     
@@ -170,63 +181,18 @@ def get_seg_loc(layout, bids_img, seg, phantom, offset=0):
     ijk = np.linalg.inv(affine) @ p
     return ijk, p[:3]
 
-def refine_mimics_2D_sag():
-    return True
 
-def refine_mimics_2D_cor():
-    return True
-
-def refine_mimics_2D(layout, bids_img, seg, phantom, ow=False):
+def refine_mimics_2D_axi(layout, bids_img, seg, phantom, ow=False):
     
     # Define the output
     ent = bids_img.get_entities()
     fname_2D = _make_deriv_fname(layout, ent, tool='ghost', desc=f'seg{seg}2D')
 
     if _check_run(fname_2D, ow):
-        # Get slice with largest radius
-        dx,dy,dz = ants.image_read(bids_img.path).spacing
-        
-        my_k = 0
-        my_r = 0
-        
-        mimic_radius_mm = int(phantom.get_specs()['Sizes'][seg])/2
-        mimic_radius_vox = mimic_radius_mm/dx
-
-        ijk, xyz_ref = phantom.get_seg_location(affine=bids_img.get_image().affine, seg=seg, 
-                                                xfm_fname= _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine'), 
-                                                offset=0)
-        ijk, xyz_ref = get_seg_loc(layout, bids_img, seg, phantom, offset=0)
-        z0 = xyz_ref[2]
-        print(ijk)
-        print(xyz_ref)
-        klist = [int(np.floor(ijk[2])), int(np.ceil(ijk[2]))]
-        
-        for k0 in klist:
-            # Figure out which z position we are at relative to center of the sphere
-            z1 = (bids_img.get_image().affine @ np.array([0,0,k0,1]))[2]
-            
-            if mimic_radius_vox**2 > (z0 - z1)**2:
-                pv_rad = np.sqrt(mimic_radius_vox**2 - (z0 - z1)**2)
-            else:
-                pv_rad = 0
-            
-            if pv_rad > my_r:
-                my_k = k0
-                my_r = pv_rad
-
         seg_img = ants.image_read(_get_seg_fname(layout, bids_img, desc=f'seg{seg}'))
-        
-        new_seg = np.zeros(seg_img.shape[0:2])
-        for i in range(1,15):
-            com = center_of_mass(seg_img.numpy()==i)
-            d = disk([com[0], com[1]], my_r, shape=seg_img.shape[0:2])
-            new_seg[d] = i
+        xfm = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
 
-        refined_seg = np.zeros(seg_img.shape)
-        refined_seg[...,my_k] = new_seg
-        refined_seg_img = ants.from_numpy(refined_seg, origin=seg_img.origin, direction=seg_img.direction, spacing=seg_img.spacing)
-
-        # Make new filenames
+        refined_seg_img = phantom.mimic_3D_to_2D_axial(seg_img=seg_img, seg_name=seg, xfm_fname=xfm, radius=None)
         ants.image_write(refined_seg_img, fname_2D)
 
         return refined_seg_img
@@ -234,12 +200,14 @@ def refine_mimics_2D(layout, bids_img, seg, phantom, ow=False):
     else:
         return ants.image_read(fname_2D)
 
+
 def find_best_slice(layout, bids_img, seg, slthick=5):
     z = []
     for i in [-1,0,1]:
         z.append*get_seg_loc(layout, bids_img, seg)
-    
-def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=False):
+
+
+def get_fiducials(layout, bids_img, phantom, resample_res=None, ow=False):
     """
     Get fiducials segmentation from an input image.
 
@@ -262,7 +230,9 @@ def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=Fa
     """
 
     ent = bids_img.get_entities()
-    ent["reconstruction"] = ent["reconstruction"]+'Interp'
+    if resample_res is not None:
+        ent["reconstruction"] = ent["reconstruction"]+'Interp'
+
     fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFid')
 
     if _check_run(fid_fname_out, ow):
@@ -270,12 +240,15 @@ def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=Fa
         # Interpolate swoop data
         interp_fname = _make_deriv_fname(layout, ent, tool='ghost')
         
-        if os.path.exists(interp_fname) and (not ow):
-            swoop_img = ants.image_read(interp_fname)
+        if resample_res is not None:
+            if os.path.exists(interp_fname) and (not ow):
+                swoop_img = ants.image_read(interp_fname)
+            else:
+                print(f"Resampling input image to {resample_res}")
+                swoop_img = ants.resample_image(ants.image_read(bids_img.path), resample_params=resample_res, use_voxels=False, interp_type=4)
+                ants.image_write(swoop_img, interp_fname)
         else:
-            print(f"Resampling input image to {resample_res}")
-            swoop_img = ants.resample_image(ants.image_read(bids_img.path), resample_params=resample_res, use_voxels=False, interp_type=4)
-            ants.image_write(swoop_img, interp_fname)
+            swoop_img = ants.image_read(bids_img.path)
         
         # Check for registration to template
         new_xfm = False
@@ -297,7 +270,6 @@ def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=Fa
         fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFidLabels')
         ants.image_write(fiducial_labels, _check_paths(fid_fname_out))
 
-
         if new_xfm:
             _check_paths(xfm_fname)
             shutil.copy(xfm, xfm_fname)
@@ -305,6 +277,7 @@ def get_fiducials(layout, bids_img, phantom, resample_res=[1.0, 1.0, 1.0], ow=Fa
         for i,x in enumerate(refined_xfm):
             xfm_fname = _make_deriv_fname(layout, ent, extension='mat', desc=f'Fiducials0GenericAffine{i}', tool='ants')
             shutil.copy(x, xfm_fname)
+
 
 def warp_thermo(layout, temp_bids_img, t2_bids_img, ow=False):
     
@@ -319,6 +292,7 @@ def warp_thermo(layout, temp_bids_img, t2_bids_img, ow=False):
         N4 = ants.n4_bias_field_correction(ants.denoise_image(reg['warpedmovout'], mask=phantom_mask), mask=phantom_mask, return_bias_field=True)
         
         ants.image_write(reg['warpedmovout']/N4, out_fname)
+
 
 def get_temperature(layout, thermo, phantom, plot_on=False):
     ent = thermo.get_entities()
@@ -336,6 +310,8 @@ def get_temperature(layout, thermo, phantom, plot_on=False):
 
     return temperature
 
+
+### Stats ###
 def calc_runs_psnr(layout, bids_img, ow=False):
     """
     Calculate the Peak Signal-to-Noise Ratio (PSNR) between two runs of an image.
@@ -376,6 +352,7 @@ def calc_runs_psnr(layout, bids_img, ow=False):
 
         return PSNR
 
+
 def parse_fiducial_positions(layout, img, phantom, ow=False):
     """
     Parse fiducial positions from an image and calculate the differences between the parsed positions and reference positions.
@@ -402,7 +379,7 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
     
     if _check_run(fname, ow):
         seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
-                        session=ent['session'], desc='segRegFid', run=run, reconstruction=ent['reconstruction']+"Interp")[0]
+                        session=ent['session'], desc='segRegFid', run=run, reconstruction=ent['reconstruction'])[0]
 
         fiducials = ants.image_read(seg.path)
         ent = seg.get_entities()
@@ -439,6 +416,37 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
 
         return positions
 
+def get_fiducial_points2(layout, img, phantom, ow=False):
+    # 1. Find position of fiducial in template space
+    fid = ants.image_read(phantom.get_seg_nii('fiducials'))
+    temp_points = np.zeros((15,3))
+
+    for i in range(15):
+        temp_points[i,:] = ants.get_center_of_mass(fid==(i+1))
+
+    # 2. Get position in swoop space using affine xfm
+    # dp = phantom.get_specs()['FiducialPositions']
+    # design_points = np.zeros((15,3))
+    swoop_points = np.zeros((15,3))
+    reg_points = np.zeros((15,3))
+
+    ent = img.get_entities()
+
+    for i in range(15):
+        fname = layout.get(scope='derivatives', suffix='T2w', run=1, subject=ent['subject'], 
+                        reconstruction=ent['reconstruction'], session=ent['session'], desc=f'Fiducials0GenericAffine{i}')[0]
+        xfm = ants.read_transform(fname)
+        swoop_points[i,:] = ants.apply_ants_transform_to_point(xfm.invert(), temp_points[i,:])
+        
+        # design_points[i,:] = dp[f'{i+1}']
+        
+    reg = ants.fit_transform_to_paired_points(swoop_points, temp_points, transform_type='rigid')
+    
+    for i in range(15):
+        reg_points[i,:] = reg.invert().apply_to_point(swoop_points[i,:])
+
+    return reg_points, temp_points
+
 def get_intensity_stats(layout, bids_img, seg_name, ow=False):
     """
     Calculate intensity statistics for a given image and segmentation.
@@ -470,7 +478,9 @@ def get_intensity_stats(layout, bids_img, seg_name, ow=False):
         df.drop(['t', 'Count', 'Mass'], axis=1, inplace=True)
         df.reset_index(inplace=True, drop=True)
         df.to_csv(fname)
- 
+
+
+### Study specific workflows ###
 def unity_qa_process_subject(layout, sub, ses):
     """
     Process the Unity QA data for a subject.
@@ -493,50 +503,57 @@ def unity_qa_process_subject(layout, sub, ses):
 
     _logprint(f'Starting for {sub}-{ses}')
     
-    # Warp the masks
-    _logprint("--- Warping masks ---")
-    for img in [axi1, axi2, sag, cor]:
-        _logprint(img.filename)
-        for mask in ['T1mimics', 'T2mimics', 'ADC', 'LC', 'phantomMask', 'SNR']:
-            _logprint(mask)
-            warp_mask(layout, img, mask, phantom, ow=False)
-            
-    layout = _update_layout(layout)
+    mimics = ['T1mimics', 'T2mimics', 'ADC']
+    all_masks = [*mimics, 'LC', 'phantomMask']
+    all_t2 = [axi1, axi2, sag, cor]
 
-    # T1, T2, ADC arrays
-    _logprint("Refining masks to 2D and getting intensity stats")
-    for img in [axi1, axi2, sag, cor]:
-        _logprint(img.filename)
-        for mask in ['T1mimics', 'T2mimics', 'ADC']:
-            refine_mimics_2D(layout, img, mask, phantom, ow=False)
-            
-            layout = _update_layout(layout)
+    # Warp the masks
+    _logprint("--- Register to template ---")
+    for img in all_t2:
+        reg_img(layout, img, phantom, ow=False)
+    
+    _logprint('Warping masks')
+    layout = _update_layout(layout)
+    for img in all_t2:
+        for mask in all_masks:
+            warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
+
+
+    _logprint('Refining 2D masks')
+    layout = _update_layout(layout)
+    for img in [axi1, axi2]:
+        for mask in mimics:
+            refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
+
+    _logprint('Getting intensity stats')            
+    layout = _update_layout(layout)
+    for img in [axi1, axi2]:
+        for mask in mimics:
             get_intensity_stats(layout, img, f"seg{mask}", ow=False)
     
-    layout = _update_layout(layout)
-    
-    # Fiducials
     _logprint("Getting fiducial arrays")
-    for img in [axi1, axi2, sag, cor]:
-        _logprint(img.filename)
+    layout = _update_layout(layout)
+    for img in all_t2:
         get_fiducials(layout, img, phantom, ow=False)
 
+    
+    _logprint("Getting temperature")
     layout = _update_layout(layout)
-
-    # Fiducial positions
+    warp_thermo(layout, fisp, axi1, ow=False)
+    
+    layout = _update_layout(layout)
+    get_temperature(layout, 
+                    thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
+                    phantom=phantom, plot_on=True)
+    
     _logprint("Parsing fiducial locations")
     for img in [axi1, axi2, sag, cor]:
         _logprint(img.filename)
         parse_fiducial_positions(layout, img, phantom, ow=False)
 
-    # PSNR
-    _logprint("Calculating PSNR")
-    calc_runs_psnr(layout, axi1, ow=False)
+    # # PSNR
+    # _logprint("Calculating PSNR")
+    # calc_runs_psnr(layout, axi1, ow=False)
 
-    # Tempearture
-    _logprint("Getting temperature")
-    warp_thermo(layout, fisp, axi1, ow=False)
-    layout = _update_layout(layout)
 
-    thermo = layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0]
-    get_temperature(layout, thermo, phantom)
+    # 

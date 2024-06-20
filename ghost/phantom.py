@@ -1,20 +1,20 @@
-import os
 import json
+import os
+import tempfile
 
 import ants
+import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
-import pandas as pd
-from scipy import ndimage as ndi
-import matplotlib.pyplot as plt
 from scipy.ndimage import center_of_mass, distance_transform_edt
-from tqdm import tqdm
 from skimage.draw import disk
+from tqdm import tqdm
 
-from .misc import ghost_path
-from .metrics import calc_psnr
-from .math import rician_loglike, make_sphere
 from .dataio import _get_image
+from .misc import ghost_path
+from .reg import exhaustive_initializer
+from .utils import make_sphere, rician_loglike
+
 
 def _check_fname(fname):
     if os.path.exists(fname):
@@ -28,6 +28,7 @@ class Phantom():
         self.path = os.path.join(ghost_path(), 'data', phantom_name)
         self.spec_json = os.path.join(self.path, 'spec.json')
         self.weightings = []
+
 
     def get_phantom_nii(self, weighting='T1w'):
         """Get filename of phantom image
@@ -46,9 +47,37 @@ class Phantom():
             raise ValueError(f'Not a valid weighting. (Valid: {self.weightings})')
         else:
             return _check_fname(os.path.join(self.path, f'phantom_{weighting}.nii.gz'))
-        
-        
-    def reg_to_phantom(self, target_img, phantom_weighting='T1', mask='phantomMask'):
+
+
+    def robust_initializer(self, target_img, weighting='T2w', mask='phantomMask'):
+        """
+        Wrapper for robust initialization of z rotation
+
+        Args:
+            target_img (numpy.ndarray): The target image to be registered.
+            weighting (str, optional): Phantom weighting. Defaults to 'T2w'.
+            mask (str, optional): The mask used in phantom space. Defaults to 'phantomMask'.
+
+        Returns:
+            ants.core.transforms.Transform: transformation
+
+        """
+
+        fixed_fname = self.get_phantom_nii(weighting)
+        mask_fname = self.get_seg_nii(mask)
+
+        with tempfile.TemporaryDirectory() as td:
+            print("Exhaustive initializer")
+            moving_fname = os.path.join(td, 'moving.nii.gz')
+            ants.image_write(target_img, moving_fname)
+
+            xfm_ants = exhaustive_initializer(fixed_fname=fixed_fname, moving_fname=moving_fname, mask_fname=mask_fname)
+    
+            return xfm_ants
+
+
+    def reg_to_phantom(self, target_img, reg_type='Rigid', total_sigma=200, flow_sigma=30, weighting='T1', mask='phantomMask', init_z=True):
+
         """Get transformation object from target image to reference image
         
         Parameters
@@ -56,7 +85,16 @@ class Phantom():
         target_img : antsImage
             The target image.
         
-        phantom_weighting : str
+        reg_type :  str
+            Which type of registration (Rigid/SyN)
+            
+        total_sigma : int
+            Total sigma for SyN registration
+        
+        flow_sigma : int
+            Flow sigma for SyN Registration
+
+        weighting : str
             Which weighting.
 
         mask : str
@@ -64,18 +102,30 @@ class Phantom():
 
         Returns
         -------
-        list
-            Inverse transforms used to warp segmentation from reference to taget space.
+        (list,list)
+            Filenames of inverse and forward transforms
         """
-
-        ref_img = ants.image_read(self.get_phantom_nii(phantom_weighting))
+        
+        ref_img = ants.image_read(self.get_phantom_nii(weighting))
         mask_img = ants.image_read(self.get_seg_nii(mask))
+
+        init_xfm = None
+
+        if init_z:
+            xfm = self.robust_initializer(target_img, weighting=weighting, mask=mask)
+            xfm_fname = tempfile.mkstemp(suffix='.mat')[1]
+            ants.write_transform(xfm, xfm_fname)
+            
+            init_xfm = xfm_fname
+ 
+        reg = ants.registration(fixed=ref_img, moving=target_img, mask=mask_img, type_of_transform='DenseRigid', initial_transform=init_xfm)
+
+        if reg_type.lower() == 'syn':
+            reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='SyN', mask=mask_img,
+                                        initial_transform=reg['fwdtransforms'][0], total_sigma=total_sigma, flow_sigma=flow_sigma)
         
-        reg_rigid = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='Affine')
-        reg_elastics = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='SyN', mask=mask_img,
-                                    initial_transform=reg_rigid['fwdtransforms'][0], total_sigma=200, flow_sigma=30)
-        
-        return reg_elastics['invtransforms']
+        return reg['invtransforms'], reg['fwdtransforms']
+
 
     def get_seg_nii(self, seg='T1'):
         """Get filename of segmentation image
@@ -92,7 +142,8 @@ class Phantom():
         
         return _check_fname(os.path.join(self.path, f'seg_{seg}.nii.gz'))
 
-    def warp_seg(self, target_img, seg='T1', xfm=None, weighting=None):
+
+    def warp_seg(self, target_img, xfm, seg):
         """Warp any segmentation to target image
         
         Parameters
@@ -101,37 +152,42 @@ class Phantom():
             The reference image.
         
         seg : str
-            Which segmentation to warp
+            Name of the segmentation to warp
 
-        xfm : ANTsTransform
-            Transformation object to use. Will calculate if not provided
-
-        weighting : str
-            Which phantom weighting to register to
-        
+        xfm : xfm
+            The transforms to apply    
+    
         Returns
         -------
         ANTsImage
             The warped segmentation.
         """
-        
-        if xfm is None and weighting is None:
-            raise ValueError('Either xfm or weighting must be provided')
-        
-        elif xfm is None and weighting is not None:
-            xfm = self.reg_to_phantom(target_img, phantom_weighting=weighting)
 
-        seg = ants.image_read(self.get_seg_nii(seg))
-        seg_warp = ants.apply_transforms(fixed=target_img, moving=seg, 
-                                        transformlist=xfm, interpolator='genericLabel')
+        if xfm is None:
+            raise ValueError('xfm must be provided. Run reg_to_phantom first')
         
-        return seg_warp, xfm
+        if type(xfm) == str:
+            xfm = [xfm]
+        
+        if len(xfm)>1:
+            whichtoinvert = [True, False]
+        else:
+            whichtoinvert = [True]
+
+
+        seg_warp = ants.apply_transforms(fixed=target_img, 
+                                         moving=ants.image_read(self.get_seg_nii(seg)), 
+                                         transformlist=xfm, interpolator='genericLabel', whichtoinvert=whichtoinvert)
+        
+        return seg_warp
+
 
     def get_specs(self):
         with open(self.spec_json, 'r') as f:
             D = json.load(f)
         return D
-        
+
+
 class Caliber137(Phantom):
         
     def __init__(self):
@@ -208,6 +264,7 @@ class Caliber137(Phantom):
         my_temperature = temperatures[LL_max]
 
         if plot_on:
+            plt.style.use('default')
             fig, axes = plt.subplots(1, 3, figsize=(10, 3))
             axes[0].imshow(np.rot90(thermo[:, :, 23]), cmap='gray')
             axes[0].axis('off')
@@ -250,13 +307,15 @@ class Caliber137(Phantom):
         
         return ijk, p[:3]
 
-    def mimic_3D_to_2D_axial(self, seg_img, seg_name, xfm_fname, radius):
+    def mimic_3D_to_2D_axial(self, seg_img, seg_name, xfm_fname, radius=None):
         dx,dy,dz = seg_img.spacing
         
         my_k = 0
         my_r = 0
         
-        # mimic_radius_mm = int(self.get_specs()['Sizes'][seg_name])/2
+        if not radius:
+            radius = int(self.get_specs()['Sizes'][seg_name])/2
+
         mimic_radius_vox = int(radius)/dx
         
         img_affine = seg_img.to_nibabel().affine
@@ -386,7 +445,6 @@ class Caliber137(Phantom):
 
         return warped_fids_4D, mask_img_3D, xfm, refined_xfm
 
-
     def find_fiducials_old(self, swoop_img, xfm=None, weighting='T2w', verbose=True):
         phantom_T2 = ants.image_read(self.get_phantom_nii(weighting))
         
@@ -441,3 +499,4 @@ class Caliber137(Phantom):
         
         return ants.from_nibabel(new_img), ants.from_nibabel(new_img2), xfm, refined_xfm
 
+    
