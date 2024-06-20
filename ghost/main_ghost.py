@@ -100,55 +100,46 @@ def main_warp_rois(args):
                 print(f"Saved {outname}")
 
 def main_setup(args):
-    download_ref_data()
+    
+    # Get available phantoms
+    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
+        phantoms_json = json.load(f)
 
-def download_ref_data():
+    avail_phantoms = phantoms_json.keys()
+    for phantom in avail_phantoms:
+        download_ref_data(phantom)
+
+
+def download_ref_data(phantom_name):
     """
     Downloads reference data for the phantom from Dropbox
     """
-    files = [{'fname':'phantom_T1w.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/z0tpp56psmpo86fcahn7u/phantom_T1w.nii.gz?rlkey=p3ii0o2ya4lwy3phq9p0ftjkc&st=7kz19xv8&dl=1'},
-            {'fname':'phantom_T2w.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/o2l2bh2te10vzs1z56izd/phantom_T2w.nii.gz?rlkey=ei6ephfc72y8u4ep0w1bvq1zj&st=evls4fwm&dl=1'},
-            {'fname':'seg_ADC.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/pmf0qc9tk3t613ss9xqsu/seg_ADC.nii.gz?rlkey=evb2kb63zpv66yhth12d64lie&st=ucq6jgpn&dl=1'},
-            {'fname':'seg_BG.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/brz47of6y4snunm5omeck/seg_BG.nii.gz?rlkey=6eszykr227ghll26jbs6pf201&st=2qid8jyq&dl=1'},
-            {'fname':'seg_fiducials.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/db5cx88lv6z2rw46jsw2u/seg_fiducials.nii.gz?rlkey=echqhdav6jw3acpjp676grn0v&st=4ompzy84&dl=1'},
-            {'fname':'seg_LC.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/hr2m5mqzzzcqmi5r2hwhy/seg_LC.nii.gz?rlkey=tojw4b1vdurheox7u8iqw3pyo&st=i2etmxrb&dl=1'},
-            {'fname':'seg_phantomMask',
-            'link':'https://www.dropbox.com/scl/fi/tin0fcvt1mni3tbll5a1z/seg_phantomMask.nii.gz?rlkey=zbot4ggmca4hjmtpc1na8e6q4&st=rplsy4jc&dl=1'},
-            {'fname':'seg_SNR.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/b7516jr8nb6h1th19f1ne/seg_SNR.nii.gz?rlkey=q01be17mes45yt7ntqmmdt3sc&st=h0gmwif6&dl=1'},
-            {'fname':'seg_T1mimics.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/ozq99zdbsoooyv5z3ouvf/seg_T1mimics.nii.gz?rlkey=4bkwn0o5gzwnc7wgqutcs7r9d&st=svycvl5h&dl=1'},
-            {'fname':'seg_T2mimics.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/209of6hxdgi808m4qwl08/seg_T2mimics.nii.gz?rlkey=at6rjrzua9aluyh37rozm513n&st=l98hl6jp&dl=1'},
-            {'fname':'seg_wedges.nii.gz',
-            'link':'https://www.dropbox.com/scl/fi/4gj6kc0ufyq0lmqoahiy8/seg_wedges.nii.gz?rlkey=xo8drjz6xmb9shlumbu459onp&st=t0hfc6wv&dl=1'},
-            {'fname':'spec.json',
-             'link':'https://www.dropbox.com/scl/fi/7lyawts3x5c3htvsfc0se/spec.json?rlkey=9v98kmn7hgod59hphomltyyqw&st=r72okmox&dl=0'}
-            ]
+    
+    print(f'Downloading reference data for {phantom_name}')
+
+    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
+        phantoms_json = json.load(f)
+        files = phantoms_json[phantom_name]['files']
 
     # Check if folder exists
-    dl_path = os.path.join(ghost_path(), 'data', 'Caliber137')
+    dl_path = os.path.join(ghost_path(), 'data', phantom_name)
     if not os.path.exists(dl_path):
         os.makedirs(dl_path)
         print(f"Created folder: {dl_path}")
 
-    for f in files:
-        file_path = f"{dl_path}/{f['fname']}"
+    # Loop over files
+    for f in files.keys():
+        file_path = f"{dl_path}/{f}"
+
         if not os.path.exists(file_path):
-            dl_link = f['link']
-            print('Downloading %s from %s'%(f['fname'], f['link']))
+            dl_link = files[f]
+            print('Downloading %s from %s'%(f, files[f]))
             myfile = requests.get(dl_link)
             fwrite = open(file_path, 'wb').write(myfile.content)
             print(f'Done. File saved to {file_path}')
 
         else:
-            print("%s is already downloaded. Skipping"%f['fname'])
+            print(f"{f} is already downloaded. Skipping")
 
 
 def main_update_sidecar(args):
