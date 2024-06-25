@@ -8,3 +8,7 @@ scipy
 scikit-learn
 pydicom
 pybids
+tqdm
+SimpleITK
+dcm2bids
+dcm2niix
