@@ -14,7 +14,7 @@ import pandas as pd
 from scipy.ndimage import center_of_mass
 from skimage.draw import disk
 
-from .metrics import calc_psnr
+from .utils import calc_psnr
 from .phantom import Caliber137
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"

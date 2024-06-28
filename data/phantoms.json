@@ -9,7 +9,7 @@
             "seg_BG.nii.gz":"https://www.dropbox.com/scl/fi/brz47of6y4snunm5omeck/seg_BG.nii.gz?rlkey=6eszykr227ghll26jbs6pf201&st=2qid8jyq&dl=1",
             "seg_fiducials.nii.gz":"https://www.dropbox.com/scl/fi/db5cx88lv6z2rw46jsw2u/seg_fiducials.nii.gz?rlkey=echqhdav6jw3acpjp676grn0v&st=4ompzy84&dl=1",
             "seg_LC.nii.gz":"https://www.dropbox.com/scl/fi/hr2m5mqzzzcqmi5r2hwhy/seg_LC.nii.gz?rlkey=tojw4b1vdurheox7u8iqw3pyo&st=i2etmxrb&dl=1",
-            "seg_phantomMask":"https://www.dropbox.com/scl/fi/tin0fcvt1mni3tbll5a1z/seg_phantomMask.nii.gz?rlkey=zbot4ggmca4hjmtpc1na8e6q4&st=rplsy4jc&dl=1",
+            "seg_phantomMask.nii.gz":"https://www.dropbox.com/scl/fi/tin0fcvt1mni3tbll5a1z/seg_phantomMask.nii.gz?rlkey=zbot4ggmca4hjmtpc1na8e6q4&st=rplsy4jc&dl=1",
             "seg_SNR.nii.gz":"https://www.dropbox.com/scl/fi/b7516jr8nb6h1th19f1ne/seg_SNR.nii.gz?rlkey=q01be17mes45yt7ntqmmdt3sc&st=h0gmwif6&dl=1",
             "seg_T1mimics.nii.gz":"https://www.dropbox.com/scl/fi/ozq99zdbsoooyv5z3ouvf/seg_T1mimics.nii.gz?rlkey=4bkwn0o5gzwnc7wgqutcs7r9d&st=svycvl5h&dl=1",
             "seg_T2mimics.nii.gz":"https://www.dropbox.com/scl/fi/209of6hxdgi808m4qwl08/seg_T2mimics.nii.gz?rlkey=at6rjrzua9aluyh37rozm513n&st=l98hl6jp&dl=1",
