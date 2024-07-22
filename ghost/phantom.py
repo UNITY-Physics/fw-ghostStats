@@ -362,7 +362,7 @@ class Caliber137(Phantom):
         for i in range(1,16):
             positions[:,i-1] = pos_D[str(i)]
         
-            return positions
+        return positions
     
     def segment_fiducials(self, img, xfm=None, weighting='T2w', binarize_threshold=0.5, verbose=True):
         """
