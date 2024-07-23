@@ -411,10 +411,61 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
         df['diffY'] = df['Y']-df['refY']
         df['diffZ'] = df['Z']-df['refZ']
         
-        fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='FidPos')
         df.to_csv(fname)
 
         return positions
+
+def get_fiducial_positions2(layout, img, phantom, ow=False):
+
+    ent = img.get_entities()
+    
+    try:
+        run = ent['run']
+    except KeyError:
+        run = None
+    
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='FidPosReal')
+    
+    if _check_run(fname, ow):
+        seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
+                        session=ent['session'], desc='segRegFidLabels', run=run, reconstruction=ent['reconstruction'])[0]
+        
+        seg = ants.image_read(fname)
+
+        # Label stats
+        seg_df = ants.label_stats(image=seg, label_image=seg)
+        seg_df = seg_df[seg_df.LabelValue > 0]
+        seg_df.drop(columns=['Mean', 'Min', 'Max', 'Variance', 'Count', 'Volume', 'Mass', 't'], inplace=True)
+        seg_df.reset_index(inplace=True, drop=True)
+
+        # Get positions
+        seg_pos = np.array([seg_df.x, seg_df.y, seg_df.z]).T
+        ref_loc = phantom.get_ref_fiducial_locations().T
+
+        # Affine registration with points
+        reg = ants.fit_transform_to_paired_points(seg_pos, ref_loc, transform_type='affine')
+        new_points = np.zeros_like(ref_loc)
+        for i in range(ref_loc.shape[0]):
+            new_points[i,:] = ants.apply_ants_transform_to_point(reg.invert(), seg_pos[i,:])
+
+        # Create new dataframe with the results
+        seg_df.rename(columns={'x':'x_org','y':'y_org','z':'z_org'}, inplace=True)
+        seg_df['x_ref'] = ref_loc[:,0]
+        seg_df['y_ref'] = ref_loc[:,1]
+        seg_df['z_ref'] = ref_loc[:,2]
+
+        seg_df['x_reg'] = new_points[:,0]
+        seg_df['y_reg'] = new_points[:,1]
+        seg_df['z_reg'] = new_points[:,2]
+
+        seg_df['x_diff'] = seg_df['x_ref'] - seg_df['x_reg']
+        seg_df['y_diff'] = seg_df['y_ref'] - seg_df['y_reg']
+        seg_df['z_diff'] = seg_df['z_ref'] - seg_df['z_reg']
+
+        seg_df.to_csv(fname)
+
+        return seg_df
+
 
 def get_fiducial_points2(layout, img, phantom, ow=False):
     # 1. Find position of fiducial in template space
@@ -555,5 +606,3 @@ def unity_qa_process_subject(layout, sub, ses):
     # _logprint("Calculating PSNR")
     # calc_runs_psnr(layout, axi1, ow=False)
 
-
-    # 
