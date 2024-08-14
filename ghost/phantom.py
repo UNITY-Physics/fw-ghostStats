@@ -455,58 +455,70 @@ class Caliber137(Phantom):
 
         return warped_fids_4D, mask_img_3D, xfm, refined_xfm
 
-    def find_fiducials_old(self, swoop_img, xfm=None, weighting='T2w', verbose=True):
-        phantom_T2 = ants.image_read(self.get_phantom_nii(weighting))
-        
-        dx,dy,dz = phantom_T2.spacing
-        fid_radius_mm = int(self.get_specs()['Sizes']['Fiducials'])/2
-        fid_radius_vox = fid_radius_mm/dx
-        
-        if not xfm:
-            print("Affine registration to template")
-            dense_rigid = ants.registration(swoop_img, phantom_T2, type_of_transform='DenseRigid')
-            aff = ants.registration(swoop_img, phantom_T2, type_of_transform='Affine', initial_transform=dense_rigid['fwdtransforms'][0])
-            xfm = aff['fwdtransforms'][0]
+    def point_reg_fiducials_2D(self, seg, acq_axis):
+        # Label stats
+        seg_df = ants.label_stats(image=seg, label_image=seg)
+        seg_df = seg_df[seg_df.LabelValue > 0]
+        seg_df.drop(columns=['Mean', 'Min', 'Max', 'Variance', 'Count', 'Volume', 'Mass', 't'], inplace=True)
+        seg_df.reset_index(inplace=True, drop=True)
 
-        source_fid = ants.image_read(self.get_seg_nii('fiducials'))
-        warp_fids = ants.apply_transforms(swoop_img, source_fid, transformlist=[xfm], interpolator='genericLabel')
-        
-        images_out = []
-        masks_out = []
-        refined_xfm = []
+        # Pick out the ones for 2D reg
+        plate_labels = {
+                    'axi': [[1,2,3,4,5], [6,7,8,9,10], [11,12,13,14,15]],
+                    'cor': [[2,4,5,7,9,10,12,14,15]],
+                    'sag': [[1,3,5,6,8,10,11,13,15]]
+                    }
 
-        for i in tqdm(range(1,16), desc='Refining segmentation', disable=(not verbose)):
-            single_fid = (source_fid==i) * (-1.0) + 1
+        scan_axis = {'sag':0, 'cor':1, 'axi':2}
 
-            fid_guess = (warp_fids==i).numpy()
-            sphere = make_sphere(warp_fids.shape, fid_radius_vox*3, center_of_mass(fid_guess))
-            single_mask = ants.from_numpy(sphere, origin=warp_fids.origin, spacing=warp_fids.spacing, direction=warp_fids.direction)
+        my_axis = [0,1,2]
+        my_axis.remove(scan_axis[acq_axis])
 
-            reg = ants.registration(swoop_img, single_fid, 
-                                    initial_transform=xfm, 
-                                    type_of_transform='Affine', 
-                                    mask=single_mask, aff_metric='mattes', 
-                                    aff_random_sampling_rate=1,
-                                    aff_iterations=(2000,2000),
-                                    aff_shrink_factors=(2,1),
-                                    aff_smoothing_sigmas=(1,0))
+        # Get ref positions
+        ref_loc = self.get_ref_fiducial_locations().T
+
+        dfs_to_combine = []
+        all_reg = []
+
+        for plate_ids in plate_labels[acq_axis]:
+
+            # Create new dataframe with the results
+            plate_df = seg_df[seg_df.LabelValue.isin(plate_ids)]
+            plate_df.rename(columns={'x':'x_org','y':'y_org','z':'z_org'}, inplace=True)
+            filter_labels = [int(x)-1 for x in plate_ids]
+            ref_pos = ref_loc[filter_labels,:]
             
-            refined_xfm.append(reg['fwdtransforms'][0])
+
+            if len(plate_df) == len(plate_ids):
+                seg_pos = np.array([plate_df.x_org, plate_df.y_org, plate_df.z_org]).T
+
+                # Affine registration with points
+                reg = ants.fit_transform_to_paired_points(seg_pos[:,my_axis], ref_pos[:,my_axis], transform_type='affine')
+                new_points = np.zeros_like(ref_pos)
+                
+                for i in range(ref_pos.shape[0]):
+                    new_points[i,my_axis] = ants.apply_ants_transform_to_point(reg.invert(), seg_pos[i,my_axis])
+
+                ax_lab = ['x','y','z']
+
+                for i in my_axis:
+                    plate_df[f'{ax_lab[i]}_ref'] = ref_pos[:,i]
+                    plate_df[f'{ax_lab[i]}_reg'] = new_points[:,i]
+                    plate_df[f'{ax_lab[i]}_diff'] = plate_df[f'{ax_lab[i]}_ref'] - plate_df[f'{ax_lab[i]}_reg']
+                    
+                plate_df[f'{ax_lab[scan_axis[acq_axis]]}_ref'] = 0
+                plate_df[f'{ax_lab[scan_axis[acq_axis]]}_reg'] = 0
+                plate_df[f'{ax_lab[scan_axis[acq_axis]]}_diff'] = 0
             
-            images_out.append(((reg['warpedmovout']* (-1.0) + 1)*single_mask).to_nibabel())
-            masks_out.append(single_mask.to_nibabel())
+            else:
+                for i,ax in enumerate(['x', 'y', 'z']):
+                    plate_df[f'{ax}_ref'] = ref_pos[:,i]
+                    plate_df[f'{ax}_reg'] = np.nan
+                    plate_df[f'{ax}_diff'] = np.nan
 
-        affine = images_out[0].affine
-        new_data = np.zeros((*images_out[0].shape,15))
-        new_data2 = np.zeros((*images_out[0].shape,15))
+            # Save reg file
+            all_reg.append(reg.parameters)
+            
+            dfs_to_combine.append(plate_df)
 
-        for i in range(15):
-            new_data[...,i] = images_out[i].get_fdata()
-            new_data2[...,i] = masks_out[i].get_fdata()
-
-        new_img = nib.Nifti1Image(new_data, affine=affine)
-        new_img2 = nib.Nifti1Image(new_data2, affine=affine)
-        
-        return ants.from_nibabel(new_img), ants.from_nibabel(new_img2), xfm, refined_xfm
-
-    
+        return all_reg, dfs_to_combine
