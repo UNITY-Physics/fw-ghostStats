@@ -197,6 +197,12 @@ class Caliber137(Phantom):
         
     def get_array_conc(self, array):
         D = self.get_specs()
+        
+        if array=='ADC':
+            conc = {0:2393, 10:1884, 20:1439, 30:1047, 40:654, 50:388}
+            ADC_vals = [conc[x] for x in D['Arrays'][array]['Concentration']]
+            D['Arrays'][array]['ADC'] = ADC_vals
+
         return D['Arrays'][array]
 
     def get_LC_specs(self):

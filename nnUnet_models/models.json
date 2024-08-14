@@ -1,0 +1,32 @@
+{
+    "axi":
+    {
+        "pp_pkl_file":"Dataset237_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/postprocessing.pkl",
+        "plans_json":"Dataset237_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/plans.json",
+        "dataset_id":237,
+        "folds":"0 1 2 3 4",
+        "trainer":"nnUNetTrainer",
+        "config":"3d_fullres",
+        "plan":"nnUNetResEncUNetMPlans"
+    },
+    "sag":
+    {
+        "pp_pkl_file":"Dataset337_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/postprocessing.pkl",
+        "plans_json":"Dataset337_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/plans.json",
+        "dataset_id":337,
+        "folds":"0 1 2 3 4",
+        "trainer":"nnUNetTrainer",
+        "config":"3d_fullres",
+        "plan":"nnUNetResEncUNetMPlans"
+    },
+    "cor":
+    {
+        "pp_pkl_file":"Dataset437_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/postprocessing.pkl",
+        "plans_json":"Dataset437_UNITY/nnUNetTrainer__nnUNetResEncUNetMPlans__3d_fullres/crossval_results_folds_0_1_2_3_4/plans.json",
+        "dataset_id":437,
+        "folds":"0 1 2 3 4",
+        "trainer":"nnUNetTrainer",
+        "config":"3d_fullres",
+        "plan":"nnUNetResEncUNetMPlans"
+    }
+}

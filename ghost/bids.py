@@ -464,6 +464,11 @@ def get_fiducial_positions2(layout, img, phantom, ow=False):
 
         seg_df.to_csv(fname)
 
+        # Save reg file
+        fname = _make_deriv_fname(layout, ent, extension='.txt', tool='ants', desc='FidPointAffine')
+        mat = reg.parameters.reshape([3,4])
+        np.savetxt(fname, mat)
+
         return seg_df
 
 
