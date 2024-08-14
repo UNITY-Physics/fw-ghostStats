@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.special import i0e
+from skimage.metrics import structural_similarity
 import pandas as pd
 import ants
 
@@ -300,5 +301,19 @@ def calc_psnr(img1, img2, mask):
     I2 = img2[mask==1]
     MSE = np.sum((I1-I2)**2)/len(I1)
     R = np.mean([max(I1),max(I2)])
-    psnr = 10*np.log10(R**2/MSE)
-    return psnr
+    PSNR = 10*np.log10(R**2/MSE)
+    return MSE, PSNR
+
+def calc_ssim(img1, img2, mask, kw=11, sigma=0):
+    gauss_window = False
+    use_sample_covariance = True
+    if sigma:
+        gauss_window = True
+        use_sample_covariance = False
+
+    mssim, S = structural_similarity(
+        img1, img2, win_size=kw, data_range=1, gradient=False,
+        multichannel=False, gaussian_weights=gauss_window, full=True, use_sample_covariance=use_sample_covariance,
+        sigma=sigma)
+    
+    return S[mask==1].mean()

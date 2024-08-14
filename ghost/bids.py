@@ -13,8 +13,9 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import center_of_mass
 from skimage.draw import disk
+from skimage.metrics import normalized_mutual_information
 
-from .utils import calc_psnr
+from .utils import calc_psnr, calc_ssim
 from .phantom import Caliber137
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
@@ -330,25 +331,36 @@ def calc_runs_psnr(layout, bids_img, ow=False):
     """
 
     ent = bids_img.get_entities()
-    fname = _make_deriv_fname(layout, ent, extension='.txt', tool='stats', desc='PSNR')
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='PSNR')
 
     if _check_run(fname, ow):
 
         img1 = layout.get(scope='raw', extension='.nii.gz', 
                     subject=ent['subject'], reconstruction=ent['reconstruction'], 
-                    session=ent['session'], run=1)[0].path
+                    session=ent['session'], run=1)[0].get_image().get_fdata()
         
         img2 = layout.get(scope='raw', extension='.nii.gz', 
                     subject=ent['subject'], reconstruction=ent['reconstruction'], 
-                    session=ent['session'], run=2)[0].path
+                    session=ent['session'], run=2)[0].get_image().get_fdata()
         
         phmask = layout.get(scope='derivatives', extension='.nii.gz', 
                     subject=ent['subject'], reconstruction=ent['reconstruction'], 
-                    session=ent['session'], run=1, desc='segphantomMask')[0].path
+                    session=ent['session'], run=1, desc='segphantomMask')[0].get_image().get_fdata()
+        
+        # Normalize images to range 0-1
+        img1 /= np.quantile(img1[...], 0.99)
+        img2 /= np.quantile(img2[...], 0.99)
 
-        PSNR = calc_psnr(ants.image_read(img1), ants.image_read(img2), ants.image_read(phmask))
-        with open(fname, 'w') as f:
-            f.write(str(PSNR))
+        MSE, PSNR = calc_psnr(img1, img2, phmask)
+        NMI = normalized_mutual_information(img1*phmask, img2*phmask)
+        SSIM = calc_ssim(img1, img2, phmask)
+
+        df = pd.DataFrame({"MSE":[MSE], "PSNR":[PSNR], "NMI":[NMI], "SSIM":[SSIM]})
+        df.to_csv(fname)
+        _logprint(f"Wrote SNR file to {fname}")
+
+        # with open(fname, 'w') as f:
+            # f.write(str(PSNR))
 
         return PSNR
 
@@ -415,7 +427,7 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
 
         return positions
 
-def get_fiducial_positions2(layout, img, phantom, ow=False):
+def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_desc='segRegFidLabels', aff_fname='FidPointAffine', ow=False):
 
     ent = img.get_entities()
     
@@ -424,13 +436,13 @@ def get_fiducial_positions2(layout, img, phantom, ow=False):
     except KeyError:
         run = None
     
-    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='FidPosReal')
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc=out_stat)
     
     if _check_run(fname, ow):
-        seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
-                        session=ent['session'], desc='segRegFidLabels', run=run, reconstruction=ent['reconstruction'])[0]
+        seg_fname = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
+                        session=ent['session'], desc=input_desc, run=run, reconstruction=ent['reconstruction'])[0]
         
-        seg = ants.image_read(fname)
+        seg = ants.image_read(seg_fname.path)
 
         # Label stats
         seg_df = ants.label_stats(image=seg, label_image=seg)
@@ -465,8 +477,8 @@ def get_fiducial_positions2(layout, img, phantom, ow=False):
         seg_df.to_csv(fname)
 
         # Save reg file
-        fname = _make_deriv_fname(layout, ent, extension='.txt', tool='ants', desc='FidPointAffine')
-        mat = reg.parameters.reshape([3,4])
+        fname = _make_deriv_fname(layout, ent, extension='.txt', tool='ants', desc=aff_fname)
+        mat = reg.parameters.reshape([4,3])
         np.savetxt(fname, mat)
 
         return seg_df
@@ -563,51 +575,51 @@ def unity_qa_process_subject(layout, sub, ses):
     all_masks = [*mimics, 'LC', 'phantomMask']
     all_t2 = [axi1, axi2, sag, cor]
 
-    # Warp the masks
-    _logprint("--- Register to template ---")
-    for img in all_t2:
-        reg_img(layout, img, phantom, ow=False)
+    # # Warp the masks
+    # _logprint("--- Register to template ---")
+    # for img in all_t2:
+    #     reg_img(layout, img, phantom, ow=False)
     
-    _logprint('Warping masks')
-    layout = _update_layout(layout)
-    for img in all_t2:
-        for mask in all_masks:
-            warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
+    # _logprint('Warping masks')
+    # layout = _update_layout(layout)
+    # for img in all_t2:
+    #     for mask in all_masks:
+    #         warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
 
+    # _logprint('Refining 2D masks')
+    # layout = _update_layout(layout)
+    # for img in [axi1, axi2]:
+    #     for mask in mimics:
+    #         refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
 
-    _logprint('Refining 2D masks')
-    layout = _update_layout(layout)
-    for img in [axi1, axi2]:
-        for mask in mimics:
-            refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
+    # _logprint('Getting intensity stats')            
+    # layout = _update_layout(layout)
+    # for img in [axi1, axi2]:
+    #     for mask in mimics:
+    #         get_intensity_stats(layout, img, f"seg{mask}", ow=False)
+    
+    # _logprint("Getting fiducial arrays")
+    # layout = _update_layout(layout)
+    # for img in all_t2:
+    #     get_fiducials(layout, img, phantom, ow=False)
+    
+    # _logprint("Parsing fiducial locations")
+    # for img in [axi1, axi2, sag, cor]:
+    #     _logprint(img.filename)
+    #     # parse_fiducial_positions(layout, img, phantom, ow=False)
+    #     # get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_desc='segRegFidLabels', aff_fname='FidPointAffine', ow=True)
+    #     get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet', input_desc='segFidLabelsUNet', aff_fname='FidPointUNetAffine', ow=True)
 
-    _logprint('Getting intensity stats')            
-    layout = _update_layout(layout)
-    for img in [axi1, axi2]:
-        for mask in mimics:
-            get_intensity_stats(layout, img, f"seg{mask}", ow=False)
+    # _logprint("Getting temperature")
+    # layout = _update_layout(layout)
+    # warp_thermo(layout, fisp, axi1, ow=False)
     
-    _logprint("Getting fiducial arrays")
-    layout = _update_layout(layout)
-    for img in all_t2:
-        get_fiducials(layout, img, phantom, ow=False)
-
-    
-    _logprint("Getting temperature")
-    layout = _update_layout(layout)
-    warp_thermo(layout, fisp, axi1, ow=False)
-    
-    layout = _update_layout(layout)
-    get_temperature(layout, 
-                    thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
-                    phantom=phantom, plot_on=True)
-    
-    _logprint("Parsing fiducial locations")
-    for img in [axi1, axi2, sag, cor]:
-        _logprint(img.filename)
-        parse_fiducial_positions(layout, img, phantom, ow=False)
+    # layout = _update_layout(layout)
+    # get_temperature(layout, 
+    #                 thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
+    #                 phantom=phantom, plot_on=False)
 
     # # PSNR
-    # _logprint("Calculating PSNR")
-    # calc_runs_psnr(layout, axi1, ow=False)
+    _logprint("Calculating PSNR")
+    calc_runs_psnr(layout, axi1, ow=True)
 
