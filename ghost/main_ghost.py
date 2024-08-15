@@ -1,18 +1,7 @@
 import argparse
-import glob
-import json
-import os
-import re
 import sys
 
-import ants
-import pydicom
-import requests
-
-from .dataio import get_nifti_basename, load_4D_nifti
-from .misc import ghost_path
-# from .phantom import warp_seg
-
+from .cmd import warp_rois, download_all_ref_data, update_sidecar
 
 def main():
     GHOST_parser()
@@ -20,12 +9,14 @@ def main():
 class GHOST_parser(object):
 
     def __init__(self):
-        method_list = [method for method in dir(self) if method.startswith('_') is False]
+        method_list = [method for method in dir(self) if method.startswith('entrypoint')]
         
         method_str=''
         for method in method_list:
             dstr = eval(f'self.{method}.__doc__')
-            method_str += "\t{:25s}{:25s}\n".format(method, dstr)
+            nice_name = method.replace('entrypoint_', '')
+
+            method_str += "\t{:25s}{:25s}\n".format(nice_name, dstr)
 
         parser = argparse.ArgumentParser(description='GHOST: A framework for phantom analysis in the UNITY project',
                                          usage=f'''ghost <command> [<args>]
@@ -39,34 +30,44 @@ class GHOST_parser(object):
         args = parser.parse_args(sys.argv[1:2])
 
         # Check if the object (the class) has a function with the given command name
-        if not hasattr(self, args.command):
+        if not hasattr(self, "entrypoint_" + args.command):
             print('Unrecognized command')
             parser.print_help()
             exit(1)
 
         # Call the method
-        getattr(self, args.command)()
+        getattr(self, "entrypoint_" +args.command)()
 
-    def warp_rois(self):
+    def entrypoint_warp_rois(self):
         """Warp ROIS"""
         parser = argparse.ArgumentParser(description='Warp ROIs to target image',
                                          usage='ghost warp_rois <input> [<args>]]')
         
         parser.add_argument('input', type=str, help='Input image')
-        parser.add_argument('-w', '--weighting', type=str, default='T1', help='Phantom weighting (T1 or T2)')
-        parser.add_argument('-s', '--seg', action='append', type=str, help='Segmentation (T1, T2, ADC)')
+        parser.add_argument('-s', '--seg', required=True, type=str, help='Segmentation')
+        parser.add_argument('-w', '--weighting', type=str, default='T1', help='Phantom weighting')
         parser.add_argument('-o', '--out', type=str, default=None, help='Output basename (default is input basename)')
+        parser.add_argument('-p', '--phantom', type=str, default='Caliber137', help='Phantom model to use')
+        parser.add_argument('--syn', action='store_true', help='Use deformable SyN registration to template')
         parser.add_argument('--vol', type=int, default=None, help='Volume to use (default is last volume)')
+        parser.add_argument('--save_xfm', action='store_true', help='Save transform for later use. Specify names with --xfm_out. Default is input basename')
+        parser.add_argument('--xfm_aff_in', type=str, default=None, help='Input file name for affine template->image transform')
+        parser.add_argument('--xfm_syn_in', type=str, default=None, help='Input file name for syn template->image transform')
+        parser.add_argument('--xfm_out', type=str, default=None, help='Filename to save calculated transform(s)')
         
         args = parser.parse_args(sys.argv[2:])
-        main_warp_rois(args)
+        warp_rois(input=args.input, output=args.out, seg=args.seg, 
+                  weighting=args.weighting, vol=args.vol, phantom_model=args.phantom, 
+                  do_syn=args.syn, xfm_out_name=args.xfm_out, xfm_aff_in=args.xfm_aff_in, xfm_syn_in=args.xfm_syn_in, save_xfm=args.save_xfm)
 
-    def setup(self):
+
+    def entrypoint_setup(self):
         """Download data"""
         parser = argparse.ArgumentParser(description='Setup repo and download data',
                                          usage='ghost setup')
         args = parser.parse_args(sys.argv[2:])
-        main_setup(args)
+        download_all_ref_data(args)
+
 
     def update_sidecar(self):
         """Update json sidecar info from dicom tags"""
@@ -77,173 +78,7 @@ class GHOST_parser(object):
         parser.add_argument('-v', '--verbose', help='Verbose output', action='store_true')
         
         args = parser.parse_args(sys.argv[2:])
-        main_update_sidecar(args)
-
-
-def main_warp_rois(args):
-        # Read input image
-        img = load_4D_nifti(args.input, vol=args.vol, mag=True)
-        
-        # Check segmentation options
-        valid_segs = ['T1', 'T2', 'ADC', 'BG']
-        if args.out is None:
-            output_basename = get_nifti_basename(args.input)
-        else:
-            output_basename = args.out
-        for s in args.seg:
-            if s not in valid_segs:
-                raise ValueError(f'Not a valid segmentation. (Valid: {valid_segs})')
-            else:
-                seg = warp_seg(img, weighting=args.weighting, seg=s)
-                outname = f'{output_basename}_mask{s}.nii.gz'
-                ants.image_write(seg, outname)
-                print(f"Saved {outname}")
-
-def main_setup(args):
-    
-    # Get available phantoms
-    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
-        phantoms_json = json.load(f)
-
-    avail_phantoms = phantoms_json.keys()
-    for phantom in avail_phantoms:
-        download_ref_data(phantom)
-
-
-def download_ref_data(phantom_name):
-    """
-    Downloads reference data for the phantom from Dropbox
-    """
-    
-    print(f'Downloading reference data for {phantom_name}')
-
-    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
-        phantoms_json = json.load(f)
-        files = phantoms_json[phantom_name]['files']
-
-    # Check if folder exists
-    dl_path = os.path.join(ghost_path(), 'data', phantom_name)
-    if not os.path.exists(dl_path):
-        os.makedirs(dl_path)
-        print(f"Created folder: {dl_path}")
-
-    # Loop over files
-    for f in files.keys():
-        file_path = f"{dl_path}/{f}"
-
-        if not os.path.exists(file_path):
-            dl_link = files[f]
-            print('Downloading %s from %s'%(f, files[f]))
-            myfile = requests.get(dl_link)
-            fwrite = open(file_path, 'wb').write(myfile.content)
-            print(f'Done. File saved to {file_path}')
-
-        else:
-            print(f"{f} is already downloaded. Skipping")
-
-
-def main_update_sidecar(args):
-
-    def cast(x, dtype):
-        if dtype == 'str':
-            return str(x)
-        elif dtype == 'int':
-            return int(x)
-        elif dtype == 'float':
-            return float(x)
-
-    def parse_line(line):
-        line = [x.strip() for x in line.split(',')]
-        for i in range(len(line)):
-            if line[i] == 'None':
-                line[i] = None
-        return line
-
-    def get_dcm_value(dcm, tag, dtype, reg_ex, name):
-        
-        tag_list = tag.split('/')
-        n_tags = len(tag_list)
-        val = dcm
-        tag_idx = 0
-        for tag in tag_list:
-            val = val[tag]
-            if tag_idx < n_tags-1:
-                val = val[0]
-            tag_idx += 1
-            
-        val = val.value
-        if reg_ex is not None:
-            val = re.findall(rf'{reg_ex}', val)[0]
-        
-        if name is not None:
-            tag_name = name
-        else:
-            tag_name = dcm[tag].name
-        
-        out = {tag_name: cast(val, dtype)}
-        return out
-
-    def vprint(s, v):
-        if v: print(s)
-
-    vp = args.verbose
-
-    json_dir = args.json_dir
-    dicom_dir = args.dicom_dir
-    json_files = glob.glob(f'{json_dir}/**/*.json', recursive=True)
-    dicom_files = glob.glob(f'{dicom_dir}/**/*.dcm', recursive=True)
-
-    vprint(f"Found {len(json_files)} json files in {json_dir}", vp)
-    vprint(f"Found {len(dicom_files)} dicom files in {dicom_dir}", vp)
-
-    if len(json_files) == 0:
-        raise FileNotFoundError('No json files found in {}'.format(json_dir))
-    if len(dicom_files) == 0:
-        raise FileNotFoundError('No dicom files found in {}'.format(dicom_dir))
-
-    vprint('Matching nifti and dicom files on series number', vp)
-    json_numbers = {}
-    for json_file in json_files:
-        with open(json_file, 'r') as f:
-            series_number = json.load(f)['SeriesNumber']
-            json_numbers[series_number] = json_file
-
-    dicom_numbers = {}
-    for dicom_file in dicom_files:
-        dcm = pydicom.read_file(dicom_file)
-        dicom_numbers[int(dcm['0x00200011'].value)] = dicom_file
-
-    file_pairs = []
-    for series_number in json_numbers.keys():
-        if series_number in dicom_numbers:
-            file_pairs.append((json_numbers[series_number], dicom_numbers[series_number]))
-        else:
-            vprint(f"Could not find dicom file for series number {series_number}", vp)
-
-    parser = {}
-    vprint("Applying the following matches", vp)
-    vprint(f"DicomTag\t\tdtype\t\tregex\t\tname", vp)
-    with open(args.matches, 'r') as f:
-        f.readline() # Remove header
-        for line in f:
-            line = parse_line(line)
-            parser[line[0]] = {'dtype':line[1], 'reg_ex':line[2], 'name':line[3]}
-            vprint(f"{line[0]}\t\t{line[1]}\t\t{line[2]}\t\t{line[3]}", vp)
-
-    vprint("Updating json sidecar files", vp)
-    for i in range(len(file_pairs)):
-        jfile,dfile = file_pairs[i]
-        vprint(f"{dfile} -> {jfile}", vp)
-
-        with open(jfile, 'r+') as f:
-            jdata = json.load(f)
-            dcm = pydicom.read_file(dfile)
-
-            for p in parser.keys():
-                D = get_dcm_value(dcm, p, **parser[p])
-                jdata.update(D)
-        with open(jfile, 'w') as f:
-            json.dump(jdata, f, indent=4)
+        update_sidecar(args)
 
 
 if __name__ == '__main__':
