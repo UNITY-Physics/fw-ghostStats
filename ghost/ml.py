@@ -3,15 +3,22 @@ import os
 import shutil
 import subprocess as sp
 import tempfile
+import numpy as np
 
-def run_prediction(input, output, config, device='cuda', keep=False):
 
-    if len(input) != len(output):
-        raise ValueError('Input and output must be the same length')
-    
+def run_prediction(input, output, scan_plane, config, device='cuda', keep=False):
+
+    scan_plane = scan_plane.lower()
+    valid_scan_planes = ['axi', 'sag', 'cor']
+    if scan_plane not in valid_scan_planes:
+        raise ValueError(f'Scan plan is not valid. Should be {valid_scan_planes}')
+
     if type(input) == str:
         input = [input]
         output = [output]
+
+    if len(input) != len(output):
+        raise ValueError('Input and output must be the same length')
     
     # 1. Create temporary directories
     print(f"Running inference on {len(input)} images")
@@ -32,14 +39,14 @@ def run_prediction(input, output, config, device='cuda', keep=False):
 
     # 2. Get inference parameters
     with open(config, 'r') as f:
-        jdata = json.load(f)
+        jdata = json.load(f)[scan_plane]
 
     nnUNet_results = os.getenv("nnUNet_results")
 
     # 3. Run prediction
     print("Starting prediction")
     
-    cmd_predict = f"nnUNetv2_predict -device {device} -d {jdata['dataset_id']} -i {tmpdir+'/input'} -o {tmpdir+'/predicted'} -f {jdata['folds']} -tr {jdata['trainer']} -c {jdata['config']} -p {jdata['plan']} --disable_progress_bar"
+    cmd_predict = f"nnUNetv2_predict --verbose -device {device} -d {jdata['dataset_id']} -i {tmpdir+'/input'} -o {tmpdir+'/predicted'} -f {jdata['folds']} -tr {jdata['trainer']} -c {jdata['config']} -p {jdata['plan']} --disable_progress_bar"
     
     sp.call(cmd_predict, shell=True)
     
