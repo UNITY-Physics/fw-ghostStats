@@ -6,7 +6,6 @@ import tempfile
 import numpy as np
 
 
-<<<<<<< HEAD
 def run_prediction(input, output, scan_plane, config, device='cuda', keep=False):
 
     scan_plane = scan_plane.lower()
@@ -20,15 +19,6 @@ def run_prediction(input, output, scan_plane, config, device='cuda', keep=False)
 
     if len(input) != len(output):
         raise ValueError('Input and output must be the same length')
-=======
-    if type(input) == str:
-        input = [input]
-        output = [output]
-        
-    if len(input) != len(output):
-        raise ValueError('Input and output must be the same length')
-    
->>>>>>> fb7ee96 (updates)
     
     # 1. Create temporary directories
     print(f"Running inference on {len(input)} images")
