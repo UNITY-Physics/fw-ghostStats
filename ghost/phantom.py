@@ -28,6 +28,7 @@ class Phantom():
         self.path = os.path.join(ghost_path(), 'data', phantom_name)
         self.spec_json = os.path.join(self.path, 'spec.json')
         self.weightings = []
+        self.valid_seg = []
 
 
     def get_phantom_nii(self, weighting='T1w'):
@@ -76,7 +77,7 @@ class Phantom():
             return xfm_ants
 
 
-    def reg_to_phantom(self, target_img, reg_type='Rigid', total_sigma=200, flow_sigma=30, weighting='T1', mask='phantomMask', init_z=True):
+    def reg_to_phantom(self, target_img, do_syn=True, syn_total_sigma=200, syn_flow_sigma=30, weighting='T1', mask='phantomMask', init_z=True):
 
         """Get transformation object from target image to reference image
         
@@ -85,13 +86,13 @@ class Phantom():
         target_img : antsImage
             The target image.
         
-        reg_type :  str
-            Which type of registration (Rigid/SyN)
+        do_syn : bool
+            To run SyN (deformable) registration
             
-        total_sigma : int
+        syn_total_sigma : int
             Total sigma for SyN registration
         
-        flow_sigma : int
+        syn_flow_sigma : int
             Flow sigma for SyN Registration
 
         weighting : str
@@ -120,9 +121,9 @@ class Phantom():
  
         reg = ants.registration(fixed=ref_img, moving=target_img, mask=mask_img, type_of_transform='DenseRigid', initial_transform=init_xfm)
 
-        if reg_type.lower() == 'syn':
+        if do_syn:
             reg = ants.registration(fixed=ref_img, moving=target_img, type_of_transform='SyN', mask=mask_img,
-                                        initial_transform=reg['fwdtransforms'][0], total_sigma=total_sigma, flow_sigma=flow_sigma)
+                                        initial_transform=reg['fwdtransforms'][0], total_sigma=syn_total_sigma, flow_sigma=syn_flow_sigma)
         
         return reg['invtransforms'], reg['fwdtransforms']
 
@@ -131,7 +132,7 @@ class Phantom():
         """Get filename of segmentation image
 
         Args:
-            seg (str, optional): Which segmentation (T1, T2, ADC, LC, fiducials, wedges). Default is 'T1'.
+            seg (str, optional): Which segmentation. Default is 'T1'.
 
         Raises:
             ValueError: Wrong segmentation
@@ -194,6 +195,8 @@ class Caliber137(Phantom):
         self.name = 'Caliber137'
         super().__init__(self.name)
         self.weightings = ['T1w', 'T2w']
+        self.valid_seg = ['ADC', 'BG', 'fiducials', 'LC', 'phantomMask', 
+                          'T1mimics', 'T2mimics', 'wedges']
         
     def get_array_conc(self, array):
         D = self.get_specs()
