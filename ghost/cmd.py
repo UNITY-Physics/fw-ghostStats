@@ -43,10 +43,10 @@ def warp_rois(input, output, seg, weighting, vol, phantom_model,
                 xfm_inv, xfm_fwd = phantom.reg_to_phantom(img, do_syn=do_syn, weighting=weighting, init_z=True)
             else:
                 print("Registration transforms provided")
-                print(xfm_syn_in)
-                print(xfm_aff_in)
-
-                xfm_inv = [xfm_aff_in, xfm_syn_in]
+                
+                xfm_inv = [xfm_aff_in]
+                if xfm_syn_in:
+                    xfm_inv.append(xfm_syn_in)
 
             print("Warping segmentation to input data")
             seg_img = phantom.warp_seg(img, xfm=xfm_inv, seg=seg)
