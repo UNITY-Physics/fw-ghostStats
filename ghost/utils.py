@@ -317,3 +317,9 @@ def calc_ssim(img1, img2, mask, kw=11, sigma=0):
         sigma=sigma)
     
     return S[mask==1].mean()
+
+def calc_snr_diff(img1, img2, mask):
+    img_diff = img1-img2
+    img_mean = (img1+img2)/2
+    return img_mean[mask==1].mean()/img_diff[mask==1].std()/np.sqrt(2)
+
