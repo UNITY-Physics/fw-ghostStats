@@ -73,4 +73,4 @@ See [UNITY QA description](examples/unity_QA/)
 
 ## Container
 
-Recipes for building Docker and singularity/apptainer are provided here (`Dockerfile` and `apptainer.def`). After building this you will have the full 
+Recipes for building Docker and singularity/apptainer are provided here (`Dockerfile` and `apptainer.def`).
