@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import shlex
 import shutil
 import subprocess as sp
@@ -7,16 +7,12 @@ from datetime import datetime
 
 import ants
 import bids
-import matplotlib.pyplot as plt
-import nibabel as nib
 import numpy as np
 import pandas as pd
-from scipy.ndimage import center_of_mass
-from skimage.draw import disk
 from skimage.metrics import normalized_mutual_information
 
-from .utils import calc_psnr, calc_ssim
 from .phantom import Caliber137
+from .utils import calc_psnr, calc_ssim
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 
@@ -39,7 +35,6 @@ def _check_paths(fname):
         os.makedirs(dir)
     
     return fname
-
 
 def _check_run(fname, ow):
     if (not os.path.exists(fname)) or ow:
@@ -83,6 +78,7 @@ def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0Generi
 
     return fname
 
+
 ### Tools to use ###
 
 def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
@@ -114,7 +110,6 @@ def setup_bids_directories(projdir):
     Returns:
         None
     """
-
 
     # Check for basic folders
     for f in ['rawdata', 'derivatives']:
@@ -359,9 +354,6 @@ def calc_runs_psnr(layout, bids_img, ow=False):
         df.to_csv(fname)
         _logprint(f"Wrote SNR file to {fname}")
 
-        # with open(fname, 'w') as f:
-            # f.write(str(PSNR))
-
         return PSNR
 
 
@@ -575,51 +567,49 @@ def unity_qa_process_subject(layout, sub, ses):
     all_masks = [*mimics, 'LC', 'phantomMask']
     all_t2 = [axi1, axi2, sag, cor]
 
-    # # Warp the masks
-    # _logprint("--- Register to template ---")
-    # for img in all_t2:
-    #     reg_img(layout, img, phantom, ow=False)
+    # Warp the masks
+    _logprint("--- Register to template ---")
+    for img in all_t2:
+        reg_img(layout, img, phantom, ow=False)
     
-    # _logprint('Warping masks')
-    # layout = _update_layout(layout)
-    # for img in all_t2:
-    #     for mask in all_masks:
-    #         warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
+    _logprint('Warping masks')
+    layout = _update_layout(layout)
+    for img in all_t2:
+        for mask in all_masks:
+            warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
 
-    # _logprint('Refining 2D masks')
-    # layout = _update_layout(layout)
-    # for img in [axi1, axi2]:
-    #     for mask in mimics:
-    #         refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
+    _logprint('Refining 2D masks')
+    layout = _update_layout(layout)
+    for img in [axi1, axi2]:
+        for mask in mimics:
+            refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
 
-    # _logprint('Getting intensity stats')            
-    # layout = _update_layout(layout)
-    # for img in [axi1, axi2]:
-    #     for mask in mimics:
-    #         get_intensity_stats(layout, img, f"seg{mask}", ow=False)
+    _logprint('Getting intensity stats')            
+    layout = _update_layout(layout)
+    for img in [axi1, axi2]:
+        for mask in mimics:
+            get_intensity_stats(layout, img, f"seg{mask}", ow=False)
     
-    # _logprint("Getting fiducial arrays")
-    # layout = _update_layout(layout)
-    # for img in all_t2:
-    #     get_fiducials(layout, img, phantom, ow=False)
+    _logprint("Getting fiducial arrays")
+    layout = _update_layout(layout)
+    for img in all_t2:
+        get_fiducials(layout, img, phantom, ow=False)
     
-    # _logprint("Parsing fiducial locations")
-    # for img in [axi1, axi2, sag, cor]:
-    #     _logprint(img.filename)
-    #     # parse_fiducial_positions(layout, img, phantom, ow=False)
-    #     # get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_desc='segRegFidLabels', aff_fname='FidPointAffine', ow=True)
-    #     get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet', input_desc='segFidLabelsUNet', aff_fname='FidPointUNetAffine', ow=True)
+    _logprint("Parsing fiducial locations")
+    for img in [axi1, axi2, sag, cor]:
+        _logprint(img.filename)
+        get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet', input_desc='segFidLabelsUNet', aff_fname='FidPointUNetAffine', ow=True)
 
-    # _logprint("Getting temperature")
-    # layout = _update_layout(layout)
-    # warp_thermo(layout, fisp, axi1, ow=False)
+    _logprint("Getting temperature")
+    layout = _update_layout(layout)
+    warp_thermo(layout, fisp, axi1, ow=False)
     
-    # layout = _update_layout(layout)
-    # get_temperature(layout, 
-    #                 thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
-    #                 phantom=phantom, plot_on=False)
+    layout = _update_layout(layout)
+    get_temperature(layout, 
+                    thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
+                    phantom=phantom, plot_on=False)
 
-    # # PSNR
+    # PSNR
     _logprint("Calculating PSNR")
     calc_runs_psnr(layout, axi1, ow=True)
 

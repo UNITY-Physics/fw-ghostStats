@@ -1,7 +1,8 @@
 import argparse
 import sys
 
-from .cmd import warp_rois, download_all_ref_data, update_sidecar
+from .cmd import download_all_ref_data, update_sidecar, warp_rois
+
 
 def main():
     GHOST_parser()

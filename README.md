@@ -1,5 +1,7 @@
 # GHOST - Global Harmonisation Of Scanner performance Testing
 
+![logo](doc/_static/ghost_logo.png)
+
 Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phantom).
 
 ## Install
@@ -14,16 +16,23 @@ If you want to set up a new python environment with conda or pip you can use
 
 ```sh
 conda create -n ghost python=3.9
-
 ```
 
-There are some additional data files that are required such as phantom template data and deep learning models. All of this is easily downloaded by running the following command after installation
+There are some additional data files that are required such as phantom template data and deep learning models. All of this is easily downloaded by running the following command after installation (remember to activate your environment!)
 
 ```sh
 ghost setup
 ```
 
 This will create a folder in your home directory called `ghost_data` which contains all the various phantom models.
+
+To build the documentation, run the following:
+
+```sh
+python3 make_doc.py
+```
+
+You find the documentation by opening the [`index.html`](doc/_build/index.html) in your web browser.
 
 ### nnUNet for fiducial segmentation (Optional)
 
@@ -64,6 +73,7 @@ usage: ghost <command> [<args>]
 - `warp_rois`: Warp phantom segmentations/labels to your input data.
 
 In general, the `ghost` command operates on file names on the command line. You can also call the underlying python functions which are found in `ghost.cmd`.
+
 
 ## UNITY QA BIDS analysis
 

@@ -1,14 +1,12 @@
-"""
-Everything input and output of data
-"""
+import os
 
 import ants
 import nibabel as nib
 import numpy as np
-import os
 from bids.layout.models import BIDSImageFile
 from nibabel.nifti1 import Nifti1Image
 from numpy import ndarray
+
 
 def load_4D_nifti(img, vol=None, mag=False):
 

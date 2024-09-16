@@ -11,7 +11,7 @@ with open('requirements.txt', 'r') as fh:
 setuptools.setup(
     name="ghost",
     version="0.1",
-    author="Emil Ljungberg, Petter Clemensson",
+    author="Emil Ljungberg",
     author_email="ljungberg.emil@gmail.com",
     description="Python code to UNITY phantom data",
     long_description=long_description,

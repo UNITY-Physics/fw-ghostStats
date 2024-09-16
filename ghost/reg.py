@@ -1,7 +1,9 @@
-import SimpleITK as sitk
-import ants
-from math import pi
 import tempfile
+from math import pi
+
+import ants
+import SimpleITK as sitk
+
 
 def exhaustive_initializer(fixed_fname, moving_fname, shrink=[4], sigmas=[2], mattes_sampling=0.5, mattes_bins=50, samples=40, mask_fname=None):
     

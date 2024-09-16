@@ -1,14 +1,16 @@
-import json
 import glob
+import json
 import os
 import shutil
 
 import ants
 import pydicom
+import requests
 
-from .phantom import Caliber137
 from .dataio import get_nifti_basename, load_4D_nifti
 from .misc import ghost_path
+from .phantom import Caliber137
+
 
 def warp_rois(input, output, seg, weighting, vol, phantom_model, 
               do_syn, xfm_out_name, xfm_aff_in, xfm_syn_in, save_xfm):

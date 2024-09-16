@@ -133,3 +133,4 @@ sandbox/
 .DS_Store
 data/
 demo/
+doc/_build

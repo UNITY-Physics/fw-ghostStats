@@ -1,10 +1,12 @@
 import requests
 from tqdm import tqdm
 
+
 def figshare_download(object_id, version):
     article = requests.get(f"https://api.figshare.com/v2/articles/{object_id}/versions/{version}").json()
     for file in article['files']:
         download_file(file['download_url'], file['name'])
+
 
 def download_file(url, fname):
     # Send a HTTP request to get the content length (i.e., file size)

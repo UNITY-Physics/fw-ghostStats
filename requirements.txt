@@ -12,3 +12,5 @@ tqdm
 SimpleITK
 dcm2bids
 dcm2niix
+sphinx
+sphinx_rtd_theme

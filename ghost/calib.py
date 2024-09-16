@@ -5,7 +5,7 @@ Everything that has to do with the phantom calibration.
 """
 
 def read_calibration_sheet(fname, sheets=None):
-    """Parse Caliber MRI calibration sheet
+    """Parse CaliberMRI calibration sheet
 
     Args:
         fname (str): Full path to calibration .xls sheet
@@ -117,7 +117,6 @@ class Calibration():
             >>> calib.get_T2_vals(20)
         """
         return self._get_vals(temp=temp, mimics=mimics, column='T2', B0=B0)
-
 
     def get_ADC_vals(self, temp):
         pass

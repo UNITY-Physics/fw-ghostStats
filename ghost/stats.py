@@ -1,5 +1,4 @@
 import ants
-import pandas
 
 def parse_rois(target_img, seg_img):
     """ Parses the ROI values from a segmentation image

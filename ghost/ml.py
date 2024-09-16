@@ -3,7 +3,6 @@ import os
 import shutil
 import subprocess as sp
 import tempfile
-import numpy as np
 
 
 def run_prediction(input, output, scan_plane, config, device='cuda', keep=False):
