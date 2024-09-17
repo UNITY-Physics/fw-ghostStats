@@ -1,5 +1,12 @@
-import os
+from pathlib import Path
 
 def ghost_path():
-    import ghost
-    return os.path.join(os.path.dirname(ghost.__file__), '..')
+    gpath = Path.home().joinpath('ghost_data')
+    
+    try:
+        gpath.mkdir()
+    except:
+        pass
+
+    return str(gpath)
+    

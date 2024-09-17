@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from .cmd import download_all_ref_data, update_sidecar, warp_rois
+from .cmd import download_ref_data, update_sidecar, warp_rois
 
 
 def main():
@@ -66,8 +66,28 @@ class GHOST_parser(object):
         """Download data"""
         parser = argparse.ArgumentParser(description='Setup repo and download data',
                                          usage='ghost setup')
+        args = parser.add_argument('--nnUNet', action='store_true', help='Download nnUNet models (very large files!)')
+        args = parser.add_argument('--phantoms', action='store_true', help='Download all phantoms')
+        args = parser.add_argument('--examples', action='store_true', help='Download examples data')
+        args = parser.add_argument('--all', action='store_true', help='Download everything')
+        args = parser.add_argument('--over_write', action='store_true', help='Overwrite already downloaded data')
         args = parser.parse_args(sys.argv[2:])
-        download_all_ref_data(args)
+
+        dl_nnUNet = args.nnUNet
+        dl_phantoms = args.phantoms
+        dl_examples = args.examples
+        dl_all = args.all
+
+        if dl_all:
+            dl_nnUNet = True
+            dl_examples = True
+            dl_phantoms = True
+
+        if (not dl_phantoms) and (not dl_examples) and (not dl_nnUNet) and (not dl_all):
+            print("[ERROR] Must choose one option\n")
+            parser.print_help()
+        else:
+            download_ref_data(dl_nnUnet=dl_nnUNet, dl_phantoms=dl_phantoms, dl_examples=dl_examples, over_write=args.over_write)
 
 
     def update_sidecar(self):

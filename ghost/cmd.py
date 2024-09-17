@@ -5,12 +5,11 @@ import shutil
 
 import ants
 import pydicom
-import requests
 
 from .dataio import get_nifti_basename, load_4D_nifti
 from .misc import ghost_path
 from .phantom import Caliber137
-
+from .web import GHOST_ASSETS, figshare_download
 
 def warp_rois(input, output, seg, weighting, vol, phantom_model, 
               do_syn, xfm_out_name, xfm_aff_in, xfm_syn_in, save_xfm):
@@ -57,56 +56,79 @@ def warp_rois(input, output, seg, weighting, vol, phantom_model,
             print(f"Saved {outname}")
 
             if xfm_out_name or save_xfm:
-                xfm_aff_fname = f'{output_basename}_0GenericAffine.mat'
-                xfm_syn_fname = f'{output_basename}_1InverseWarp.nii.gz'
-                
+                if not xfm_out_name:
+                    xfm_aff_fname = f'{output_basename}_0GenericAffine.mat'
+                    xfm_syn_fname = f'{output_basename}_1InverseWarp.nii.gz'
+                else:
+                    xfm_aff_fname = f'{xfm_out_name}_0GenericAffine.mat'
+                    xfm_syn_fname = f'{xfm_out_name}_1InverseWarp.nii.gz'
+
                 shutil.copy(xfm_inv[0], xfm_aff_fname)
                 print(f"Saved aff transform to: {xfm_aff_fname}")
                 if len(xfm_inv)>1:
                     shutil.copy(xfm_inv[1], xfm_syn_fname)
                     print(f"Saved syn transform to: {xfm_syn_fname}")
 
+def download_ref_data(dl_nnUnet, dl_phantoms, dl_examples, over_write):
 
-def download_all_ref_data():
-    # Get available phantoms
-    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
-        phantoms_json = json.load(f)
+    if dl_phantoms:
+        avail_phantoms = GHOST_ASSETS['figshare']['PhantomModels']
 
-    avail_phantoms = phantoms_json.keys()
-    for phantom in avail_phantoms:
-        download_ref_data(phantom)
+        for phantom in avail_phantoms:
+            download_phantom(phantom, over_write)
 
-def download_ref_data(phantom_name):
+    if dl_nnUnet:
+        download_nnunet(over_write)
+
+    if dl_examples:
+        download_examples(over_write)
+
+def download_examples(over_write):
     """
-    Downloads reference data for the phantom from Dropbox
+    Downloads example data from figshare
+    """
+    gpath = ghost_path()
+    print(f"Downloading example data from figshare.")
+
+    fs_info = GHOST_ASSETS['figshare']['ExampleData']['UNITY_QA']
+    dl_path = os.path.join(gpath, 'example_data', 'UNITY_QA')
+    figshare_download(fs_info['object_id'], fs_info['version'], dl_path, over_write)
+
+    if (not os.path.exists(f"{dl_path}/DICOM")) or over_write:
+        print("Extracting DICOM.zip")
+        shutil.unpack_archive(f'{dl_path}/DICOM.zip', extract_dir=dl_path, format='zip')
+    else:
+        print(f"Archive already extracted to: {dl_path}/DICOM")
+
+def download_nnunet(over_write):
+    """
+    Downloads nnUNet models from figshare
+    """
+    gpath = ghost_path()
+    print(f"Downloading nnUNet models from figshare. Warning! Large files.")
+
+    fs_info = GHOST_ASSETS['figshare']['nnUNet']['Caliber137_fiducials']
+    dl_path = os.path.join(gpath, 'nnUNet')
+    figshare_download(fs_info['object_id'], fs_info['version'], dl_path, over_write)
+
+def download_phantom(phantom_name, over_write):
+    """
+    Downloads phantom reference data from figshare
     """
     
+    gpath = ghost_path()
+
     print(f'Downloading reference data for {phantom_name}')
 
-    with open(os.path.join(ghost_path(), 'data', 'phantoms.json'), 'r') as f:
-        phantoms_json = json.load(f)
-        files = phantoms_json[phantom_name]['files']
+    fs_info = GHOST_ASSETS['figshare']['PhantomModels'][phantom_name]
 
     # Check if folder exists
-    dl_path = os.path.join(ghost_path(), 'data', phantom_name)
+    dl_path = os.path.join(gpath, phantom_name)
     if not os.path.exists(dl_path):
         os.makedirs(dl_path)
         print(f"Created folder: {dl_path}")
 
-    # Loop over files
-    for f in files.keys():
-        file_path = f"{dl_path}/{f}"
-
-        if not os.path.exists(file_path):
-            dl_link = files[f]
-            print('Downloading %s from %s'%(f, files[f]))
-            myfile = requests.get(dl_link)
-            fwrite = open(file_path, 'wb').write(myfile.content)
-            print(f'Done. File saved to {file_path}')
-
-        else:
-            print(f"{f} is already downloaded. Skipping")
-
+    figshare_download(fs_info['object_id'], fs_info['version'], dl_path, over_write)
 
 def update_sidecar(args):
 

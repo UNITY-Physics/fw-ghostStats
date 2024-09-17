@@ -25,7 +25,7 @@ def _check_fname(fname):
 class Phantom():
 
     def __init__(self, phantom_name):
-        self.path = os.path.join(ghost_path(), 'data', phantom_name)
+        self.path = os.path.join(ghost_path(), phantom_name)
         self.spec_json = os.path.join(self.path, 'spec.json')
         self.weightings = []
         self.valid_seg = []
