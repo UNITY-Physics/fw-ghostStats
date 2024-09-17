@@ -10,6 +10,7 @@ from .dataio import get_nifti_basename, load_4D_nifti
 from .misc import ghost_path
 from .phantom import Caliber137
 from .web import GHOST_ASSETS, figshare_download
+from .ml import install_models
 
 def warp_rois(input, output, seg, weighting, vol, phantom_model, 
               do_syn, xfm_out_name, xfm_aff_in, xfm_syn_in, save_xfm):
@@ -110,6 +111,9 @@ def download_nnunet(over_write):
     fs_info = GHOST_ASSETS['figshare']['nnUNet']['Caliber137_fiducials']
     dl_path = os.path.join(gpath, 'nnUNet')
     figshare_download(fs_info['object_id'], fs_info['version'], dl_path, over_write)
+
+    # Install/import models
+    install_models()
 
 def download_phantom(phantom_name, over_write):
     """
