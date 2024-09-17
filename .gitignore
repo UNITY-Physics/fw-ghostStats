@@ -134,3 +134,5 @@ sandbox/
 data/
 demo/
 doc/_build
+.nii
+.nii.gz
