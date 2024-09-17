@@ -14,6 +14,7 @@ from .dataio import _get_image
 from .misc import ghost_path
 from .reg import exhaustive_initializer
 from .utils import make_sphere, rician_loglike
+from .dataio import ants_to_nibabel
 
 
 def _check_fname(fname):
@@ -327,7 +328,7 @@ class Caliber137(Phantom):
 
         mimic_radius_vox = int(radius)/dx
         
-        img_affine = seg_img.to_nibabel().affine
+        img_affine = ants_to_nibabel(seg_img).affine
         ijk, xyz_ref = self.get_seg_z_location(img_affine, seg_name, xfm_fname, offset=0)
         z0 = xyz_ref[2]
 

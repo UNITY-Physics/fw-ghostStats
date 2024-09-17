@@ -8,20 +8,19 @@ WORKDIR /opt
 # Pre reqs
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y python3 pip curl wget git
+    apt-get install -y python3 pip curl wget git cmake  libpng-dev
 
 # Install pytorch
-# RUN if [ "$PLATFORM" = "linux-cuda" ]; then \
-#         pip3 install torch torchvision torchaudio; \
-#     elif [ "$PLATFORM" = "linux-cpu" ]; then \
-#         pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
-#     elif [ "$PLATFORM" = "mac" ]; then \
-#         pip3 install torch torchvision torchaudio; \
-#     else \
-#         echo "Invalid platform argument: ${PLATFORM}"; \
-#     fi
+RUN if [ "$PLATFORM" = "linux-cuda" ]; then \
+        pip3 install torch torchvision torchaudio; \
+    elif [ "$PLATFORM" = "linux-cpu" ]; then \
+        pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
+    elif [ "$PLATFORM" = "mac" ]; then \
+        pip3 install torch torchvision torchaudio; \
+    else \
+        echo "Invalid platform argument: ${PLATFORM}"; \
+    fi
 
-RUN pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # Install nnUNet
 RUN python3 -m pip install nnunetv2
@@ -40,7 +39,4 @@ ENV nnUNet_preprocessed=/root/ghost_data/nnUnet_models/nnUnet_preprocessed
 COPY . /usr/local/src/ghost
 WORKDIR /usr/local/src/ghost
 RUN python3 -m pip install .
-
-# Import models
-RUN nnUNetv2_install_pretrained_model_from_zip /usr/local/src/ghost/nnUnet_models/export237.zip
-RUN nnUNetv2_install_pretrained_model_from_zip /usr/local/src/ghost/nnUnet_models/export337.zip
+RUN ghost setup --all
