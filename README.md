@@ -12,16 +12,16 @@ Requires python3 but otherwise no special packages. Easiest way to install is to
 python -m pip install -e .
 ```
 
-If you want to set up a new python environment with conda or pip you can use
+If you want to set up a new python environment (recommended) with conda or pip you can use
 
 ```sh
 conda create -n ghost python=3.9
 ```
 
-There are some additional data files that are required such as phantom template data and deep learning models. All of this is easily downloaded by running the following command after installation (remember to activate your environment!)
+There are some additional data files that are required such as phantom template data and deep learning models. All of this is easily downloaded by running the following command after installation (remember to activate your environment!). 
 
 ```sh
-ghost setup
+ghost setup --phantoms
 ```
 
 This will create a folder in your home directory called `ghost_data` which contains all the various phantom models.
@@ -36,25 +36,18 @@ You find the documentation by opening the [`index.html`](doc/_build/index.html) 
 
 ### nnUNet for fiducial segmentation (Optional)
 
-Segmentation of the geometric distortion fiducials is done using [nnUNet](https://github.com/MIC-DKFZ/nnUNet) which needs to be installed for this to be used. This is built into the container solutions (see below) but if you want to run this without a container you need to install nnUNet into your `ghost` python environment. I highly recommend going through the installation steps on the nnUNet website. But in brief it can be summarized as:
+Segmentation of the geometric distortion fiducials is done using [nnUNet](https://github.com/MIC-DKFZ/nnUNet) which needs to be installed for this to be used. This is built into the container solutions (see below) but if you want to run this without a container you need to install nnUNet into your `ghost` python environment. Execute the following steps:
 
 1. Install [pytorch](https://pytorch.org/get-started/locally/) using the instructions on the pytorch website.
 2. Install nnUNet using `pip install nnunetv2`
-3. Set up [environment variables for nnUNet](https://github.com/MIC-DKFZ/nnUNet/blob/master/documentation/set_environment_variables.md). The following needs to be set
+
+Once you have this set up, you can download and import the pre-trained nnUNet models
 
 ```sh
-export nnUNet_raw="<my_path>/nnUNet_raw"
-export nnUNet_preprocessed="<my_path>/nnUNet_preprocessed"
-export nnUNet_results="<my_path>/nnUNet_results"
+ghost setup --nnUNet
 ```
 
-Then you need to install the nnUNet models. They are downloaded into the `nnUnet_models` folder in this repository. Once you have everything installed and the paths set up you navigate to the folder and run
-
-```sh
-nnUNetv2_install_pretrained_model_from_zip export237.zip
-nnUNetv2_install_pretrained_model_from_zip export337.zip
-nnUNetv2_install_pretrained_model_from_zip export437.zip
-```
+This command will also import the models into the `ghost_data` directory. The `nnUNet` library typically requires you to set dedicated system paths for where to find the pre-trained models. In `ghost` we set these at run time to be the `ghost_data/nnUNet` directory to avoid clashes with your local setup.
 
 ## Command line interface (CLI) usage
 
@@ -69,13 +62,26 @@ usage: ghost <command> [<args>]
 
 ```
 
-- `setup`: First command to run which downloads the reference data used for segmentation
+- `setup`: First command to run which downloads the reference data used for segmentation (options `--phantoms`, `--examples`, `--nnUnet`)
 - `warp_rois`: Warp phantom segmentations/labels to your input data.
 
 In general, the `ghost` command operates on file names on the command line. You can also call the underlying python functions which are found in `ghost.cmd`.
 
+## Python api
 
-## UNITY QA BIDS analysis
+In addition to the command line interface it is very easy to interact with `ghost` directly in python. Have a look at the example notebooks or the documentation for more information.
+
+## Examples
+
+A [sample dataset](https://figshare.com/articles/dataset/UNITY_Phantom_QA_example_data/26954056) is provided for local testing. You can download this to your `ghost_data` directory using
+
+```sh
+ghost setup --examples
+```
+
+The two examples below uses this example dataset.
+
+### UNITY QA BIDS analysis
 
 For larger datasets it is convenint to have data organised in a BIDS structure. For this purpose there is a `ghost_unity_bids` tool which operates on a bids data structure and takes subject and session names as input. This is a work in progress.
 
@@ -83,4 +89,4 @@ See [UNITY QA description](examples/unity_QA/)
 
 ## Container
 
-Recipes for building Docker and singularity/apptainer are provided here (`Dockerfile` and `apptainer.def`).
+Recipes for building a Docker container is provided in the Dockerfile. Use the `build_docker.sh` to build the docker container, the installation of `torch` is different depending on your platform.

@@ -13,6 +13,7 @@ from skimage.metrics import normalized_mutual_information
 
 from .phantom import Caliber137
 from .utils import calc_psnr, calc_ssim
+from .ml import run_prediction
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 
@@ -28,7 +29,6 @@ def copy_file(fsource, fdest):
 def _update_layout(layout):
     return bids.BIDSLayout(root=layout.root, derivatives=layout.derivatives['derivatives'].root)
 
-
 def _check_paths(fname):
     dir = os.path.dirname(fname)
     if not os.path.exists(dir):
@@ -42,21 +42,17 @@ def _check_run(fname, ow):
     else:
         return False
     
-
 def _make_fname(layout, ent):
     return layout.build_path(ent, DERIVPATTERN, validate=False)
     
-
 def _make_deriv_fname(layout, ent, **kwargs):
     ent = ent.copy()
     for k in kwargs.keys():
         ent[k] = kwargs[k]
     return _check_paths(_make_fname(layout.derivatives['derivatives'], ent))
 
-
 def _get_fname(layout, **kwargs):
     return layout.build_path(kwargs, DERIVPATTERN, validate=False)
-
 
 def _get_seg_fname(layout, base_img, desc):
     ent = base_img.get_entities()
@@ -67,7 +63,6 @@ def _get_seg_fname(layout, base_img, desc):
 
     return _get_fname(layout.derivatives['derivatives'], subject=ent['subject'], session=ent['session'], tool='ghost', 
                             reconstruction=ent['reconstruction'], run=run, desc=desc, suffix=ent['suffix'], extension=ent['extension'])
-
 
 def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0GenericAffine'):
     ent = base_img.get_entities()
@@ -116,17 +111,21 @@ def setup_bids_directories(projdir):
         if not os.path.exists(f'{projdir}/{f}'):
             os.makedirs(f'{projdir}/{f}')
     
-    # Check for dataset description
-    if not os.path.exists(f'{projdir}/rawdata/dataset_description.json'):
-        D = {"Name": "GHOST phantom rawdata", "BIDSVersion": "1.0.2"}
-        with open(f'{projdir}/rawdata/dataset_description.json', 'w') as f:
-            json.dump(D,f)
-    
-    if not os.path.exists(f'{projdir}/derivatives/dataset_description.json'):
-        D = {"Name": "Ghost derivatives dataset", "BIDSVersion": "1.0.2", "GeneratedBy": "GHOST"}
-        with open(f'{projdir}/derivatives/dataset_description.json', 'w') as f:
-            json.dump(D,f)
+    def dump_description(fname, D):
+        if not os.path.exists(fname):
+            with open(fname, 'w') as f:
+                json.dump(D,f,indent=4)
 
+    # Check for dataset description    
+    dump_description(fname=f'{projdir}/rawdata/dataset_description.json',
+                     D={"Name": "GHOST phantom rawdata", "BIDSVersion": "1.0.2"})
+    
+    dump_description(fname=f'{projdir}/derivatives/dataset_description.json',
+                     D={"Name": "Ghost derivatives dataset", "BIDSVersion": "1.0.2", "GeneratedBy": [{"Name":"GHOST"}]})
+
+    dump_description(fname = f'{projdir}/dataset_description.json',
+                     D={"Name": "UNITY QA example dataset", "BIDSVersion": "1.0.2"})
+    
 
 def warp_mask(layout, bids_img, seg, phantom, xfm_type='SyN', weighting='T2w', ow=False):
         
@@ -143,9 +142,9 @@ def warp_mask(layout, bids_img, seg, phantom, xfm_type='SyN', weighting='T2w', o
         ants.image_write(seg_warp, _check_paths(fname_out))
             
 
-def reg_img(layout, bids_img, phantom, reg_type='Rigid', weighting='T2w', ow=False):
+def reg_img(layout, bids_img, phantom, do_syn=False, weighting='T2w', ow=False):
     
-    _logprint(f'Calculating {reg_type} transformation to template')
+    _logprint(f'Calculating transformation to template')
     
     fname_aff = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
     fname_InvSyn = _get_xfm_fname(layout, bids_img, extension='.nii.gz', desc='1InverseWarp')
@@ -153,7 +152,7 @@ def reg_img(layout, bids_img, phantom, reg_type='Rigid', weighting='T2w', ow=Fal
 
     if _check_run(fname_aff, ow):
 
-        inv_xfm, fwd_xfm = phantom.reg_to_phantom(ants.image_read(bids_img.path), reg_type=reg_type, weighting=weighting)
+        inv_xfm, fwd_xfm = phantom.reg_to_phantom(ants.image_read(bids_img.path), do_syn=do_syn, weighting=weighting)
         
         _logprint(f'Done. {inv_xfm}')
         copy_file(inv_xfm[0], fname_aff)
@@ -202,79 +201,6 @@ def find_best_slice(layout, bids_img, seg, slthick=5):
     for i in [-1,0,1]:
         z.append*get_seg_loc(layout, bids_img, seg)
 
-
-def get_fiducials(layout, bids_img, phantom, resample_res=None, ow=False):
-    """
-    Get fiducials segmentation from an input image.
-
-    Parameters:
-    - layout (object): The BIDSLayout object representing the BIDS dataset.
-    - bids_img (object): The BIDSImageFile object representing the input image.
-    - phantom (object): The Phantom object representing the phantom used for fiducial segmentation.
-    - resample_res (list, optional): The resolution to resample the input image to. Defaults to [1.0, 1.0, 1.0].
-    - ow (bool, optional): Flag indicating whether to overwrite existing results. Defaults to False.
-
-    Returns:
-    - None
-
-    This function performs the following steps:
-    1. Interpolates swoop data if necessary.
-    2. Checks for registration to template and creates a new transformation matrix if necessary.
-    3. Runs phantom.fiducial_segmentation on the input image.
-    4. Writes the fiducials and fiducial labels as output images.
-    5. Saves the new transformation matrices to the BIDs structure.
-    """
-
-    ent = bids_img.get_entities()
-    if resample_res is not None:
-        ent["reconstruction"] = ent["reconstruction"]+'Interp'
-
-    fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFid')
-
-    if _check_run(fid_fname_out, ow):
-
-        # Interpolate swoop data
-        interp_fname = _make_deriv_fname(layout, ent, tool='ghost')
-        
-        if resample_res is not None:
-            if os.path.exists(interp_fname) and (not ow):
-                swoop_img = ants.image_read(interp_fname)
-            else:
-                print(f"Resampling input image to {resample_res}")
-                swoop_img = ants.resample_image(ants.image_read(bids_img.path), resample_params=resample_res, use_voxels=False, interp_type=4)
-                ants.image_write(swoop_img, interp_fname)
-        else:
-            swoop_img = ants.image_read(bids_img.path)
-        
-        # Check for registration to template
-        new_xfm = False
-        xfm_fname = _make_deriv_fname(layout, ent, extension='mat', desc='Fiducials0GenericAffine', tool='ants')
-        
-        if os.path.exists(xfm_fname) and (not ow):
-            xfm = xfm_fname
-        else:
-            new_xfm = True
-            xfm = None
-
-        # Run fiducial segmentation
-        fiducials, fiducial_labels, xfm, refined_xfm = phantom.segment_fiducials(swoop_img, xfm=xfm, weighting='T2w', 
-                                                                       binarize_threshold=0.5, verbose=True)
-        
-        # Write outputs
-        ants.image_write(fiducials, _check_paths(fid_fname_out))
-
-        fid_fname_out = _make_deriv_fname(layout, ent, tool='ghost', desc='segRegFidLabels')
-        ants.image_write(fiducial_labels, _check_paths(fid_fname_out))
-
-        if new_xfm:
-            _check_paths(xfm_fname)
-            shutil.copy(xfm, xfm_fname)
-
-        for i,x in enumerate(refined_xfm):
-            xfm_fname = _make_deriv_fname(layout, ent, extension='mat', desc=f'Fiducials0GenericAffine{i}', tool='ants')
-            shutil.copy(x, xfm_fname)
-
-
 def warp_thermo(layout, temp_bids_img, t2_bids_img, ow=False):
     
     out_fname = _make_deriv_fname(layout, temp_bids_img.get_entities(), tool='ghost', desc='regT2wN4')
@@ -305,6 +231,15 @@ def get_temperature(layout, thermo, phantom, plot_on=False):
         f.write(str(temperature))    
 
     return temperature
+
+
+def segment_fiducials(layout, img, device='cpu', ow=False):
+    
+    ent = img.get_entities()
+    fname = _make_deriv_fname(layout, ent, extension='.nii.gz', tool='ghost', desc='segFidLabelsUNetAxis')
+    
+    if _check_run(fname, ow):
+        run_prediction(input=img.path, output=fname, scan_plane=ent['reconstruction'], device=device, keep=False)
 
 
 ### Stats ###
@@ -609,7 +544,7 @@ def unity_qa_process_subject(layout, sub, ses):
                     thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
                     phantom=phantom, plot_on=False)
 
-    # PSNR
+    
     _logprint("Calculating PSNR")
     calc_runs_psnr(layout, axi1, ow=True)
 
