@@ -1,4 +1,5 @@
 import os
+from tempfile import mkstemp
 
 import ants
 import nibabel as nib
@@ -49,3 +50,20 @@ def _get_image(x):
         return ants.from_numpy(x)
     else:
         return x
+    
+def ants_to_nibabel(img):
+    # Directly from ants.utils.convert_nibabel
+    fd, tmpfile = mkstemp(suffix=".nii.gz")
+    img.to_filename(tmpfile)
+    new_img = nib.load(tmpfile)
+    os.close(fd)
+    return new_img
+
+def nibabel_to_ants(nii):
+    # Directly from ants.utils.convert_nibabel
+    fd, tmpfile = mkstemp(suffix=".nii.gz")
+    nii.to_filename(tmpfile)
+    new_img = ants.image_read(tmpfile)
+    os.close(fd)
+    os.remove(tmpfile)
+    return new_img
