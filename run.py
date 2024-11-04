@@ -22,12 +22,12 @@ def main(context: GearToolkitContext) -> None:
     input_dir, ouput_dir, sub, ses = parse_config(context)
 
     print("Indexing folder structure")
-    print(index)
+    # print(index)
 
-    if index:
-        layout = bids.BIDSLayout(database_path=input_dir)
-    else:
-        layout = bids.BIDSLayout(root=input_dir, derivatives=ouput_dir)
+    # if index:
+    #     layout = bids.BIDSLayout(database_path=input_dir)
+    # else:
+    layout = bids.BIDSLayout(root=input_dir, derivatives=ouput_dir)
 
 
     print("running main script...")

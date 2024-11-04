@@ -3,11 +3,23 @@
 from typing import Tuple
 import flywheel
 from flywheel_gear_toolkit import GearToolkitContext
-import pandas as pd
-import os
 import json
-import re
-from datetime import datetime
+
+
+def get_acq(session_container):
+    download_dir = '/flywheel/v0/input/'
+    try:
+        for acq in session_container.acquisitions.iter():
+            for file in acq.files:
+                if file['type'] == 'nifti':
+                    download_path = download_dir + '/' + file.name
+                    file.download(download_path)
+                    print(f"Downloaded file: {file.name}")
+        return True  # Completed successfully
+    
+    except Exception as e:
+        print(f"Error downloading files: {e}")
+        return False  # Completed unsuccessfully
 
 def parse_config(
     gear_context: GearToolkitContext,
@@ -22,20 +34,19 @@ def parse_config(
     """
 
     print("Running parse_config...")
-    input = gear_context.get_input_path("input")
-    input_dir = '/flywheel/v0/input/'
-    ouput_dir = '/flywheel/v0/output/'
-
+ 
     # Read config.json file
     p = open('/flywheel/v0/config.json')
     config = json.loads(p.read())
 
     # Read API key in config file
     api_key = (config['inputs']['api-key']['key'])
-    fw = flywheel.Client(api_key=api_key)
-    
-    # Get the input file id
-    input_container = gear_context.client.get_analysis(gear_context.destination["id"])
+    input_id = (config['inputs']['input']['hierarchy']['id'])
+    input_container = gear_context.client.get(input_id)
+
+    print("API key is : ", api_key)
+    # print("input_container: ", input_container)
+
 
     # Get the subject id from the session id
     # & extract the subject container
@@ -53,4 +64,9 @@ def parse_config(
     session_label = session.label
     print("session label: ", session.label)
     
+    get_acq(session_container)
+
+    input_dir = '/flywheel/v0/input/'
+    ouput_dir = '/flywheel/v0/output/'
+
     return input_dir, ouput_dir, subject_label, session_label
