@@ -4,14 +4,24 @@ from typing import Tuple
 import flywheel
 from flywheel_gear_toolkit import GearToolkitContext
 import json
+import os
+
+from ghost.bids import setup_bids_directories, import_dicom_folder
+from ghost.misc import ghost_path
+from ghost.phantom import Caliber137
 
 
-def get_acq(session_container):
+
+def get_acq(session_container, session_label):
     download_dir = '/flywheel/v0/input/'
     try:
         for acq in session_container.acquisitions.iter():
             for file in acq.files:
-                if file['type'] == 'nifti':
+                if file['type'] == 'dicom':
+                    download_dir = ('/flywheel/v0/input/' + session_label)
+                    if not os.path.exists(download_dir):
+                        os.mkdir(download_dir)
+
                     download_path = download_dir + '/' + file.name
                     file.download(download_path)
                     print(f"Downloaded file: {file.name}")
@@ -34,7 +44,11 @@ def parse_config(
     """
 
     print("Running parse_config...")
- 
+    input_dir = '/flywheel/v0/input/'
+    work_dir = '/flywheel/v0/work/'
+    ouput_dir = '/flywheel/v0/output/'
+
+
     # Read config.json file
     p = open('/flywheel/v0/config.json')
     config = json.loads(p.read())
@@ -55,6 +69,8 @@ def parse_config(
     subject = subject_container.reload()
     print("subject label: ", subject.label)
     subject_label = subject.label
+    subject_label = subject_label.replace("-", "")
+
 
     # Get the session id from the input file id
     # & extract the session container
@@ -62,11 +78,26 @@ def parse_config(
     session_container = gear_context.client.get(session_id)
     session = session_container.reload()
     session_label = session.label
-    print("session label: ", session.label)
-    
-    get_acq(session_container)
+    date = session_label.split()[0] 
+    ses_label = date.replace("-", "")
 
-    input_dir = '/flywheel/v0/input/'
-    ouput_dir = '/flywheel/v0/output/'
+    print("session label: ", ses_label)
+    
+    # Download the dicom files from Flywheel
+    get_acq(session_container, ses_label)
+
+    # Create the BIDS directory structure
+    setup_bids_directories(work_dir)
+    # Import DICOMs. Use the example dataset
+    config = '/flywheel/v0/examples/unity_QA/bids/dcm2bids_config.json'
+    dicom_dir = input_dir #os.path.join(ghost_path(), "example_data/UNITY_QA/DICOM")
+    sub_name = subject_label # For the phantom serial number in this case
+
+    # Loop over the sessions
+    for f in os.listdir(dicom_dir):
+        p = os.path.join(dicom_dir, f)
+        if os.path.isdir(p):
+            import_dicom_folder(dicom_dir=p, sub_name=sub_name, ses_name=f, config=config, projdir=work_dir)
+
 
     return input_dir, ouput_dir, subject_label, session_label

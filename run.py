@@ -9,6 +9,7 @@ from flywheel_gear_toolkit import GearToolkitContext
 from utils.parser import parse_config
 from utils.command_line import exec_command
 from ghost.bids import unity_qa_process_subject
+from utils.bids_data_setup import setup_bids_directory, add_subject
 
 
 # The gear is split up into 2 main components. The run.py file which is executed
@@ -19,7 +20,7 @@ log = logging.getLogger(__name__)
 
 def main(context: GearToolkitContext) -> None:
     """Parses config and runs."""
-    input_dir, ouput_dir, sub, ses = parse_config(context)
+    input_dir, output_dir, sub, ses = parse_config(context)
 
     print("Indexing folder structure")
     # print(index)
@@ -27,7 +28,7 @@ def main(context: GearToolkitContext) -> None:
     # if index:
     #     layout = bids.BIDSLayout(database_path=input_dir)
     # else:
-    layout = bids.BIDSLayout(root=input_dir, derivatives=ouput_dir)
+    layout = bids.BIDSLayout(root=input_dir, derivatives=output_dir)
 
 
     print("running main script...")
