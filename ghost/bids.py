@@ -78,7 +78,7 @@ def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0Generi
 
 ### Tools to use ###
 
-def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
+def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir, skip_dcm2niix=False):
     """
     Imports DICOM files from a specified directory into the BIDS format.
 
@@ -93,7 +93,9 @@ def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
         None
     """
 
-    cmd = f'dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
+    cmd = f'dcm2bids --force_dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
+    if skip_dcm2niix:
+        cmd += ' --skip_dcm2niix'
     sp.Popen(shlex.split(cmd)).communicate()
 
 

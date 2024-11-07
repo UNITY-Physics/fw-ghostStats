@@ -184,7 +184,7 @@ def fw_process_subject(layout, sub, ses, run_mimics=True, run_fiducials=True, un
         for img in all_t2:
             try:
                 df, fname = gb.get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet',input_desc='segFidLabelsUNetAxis',
-                                                    aff_fname='FidPointUNetAffine', ow=True)
+                                                    aff_fname='FidPointUNetRigid', transform_type='rigid', ow=True)
                 deriv_fnames.append(fname)
             except:
                 warnings.warn(f"Failed to run get_fiducials_positions for {img}")

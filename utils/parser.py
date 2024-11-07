@@ -16,7 +16,7 @@ def get_acq(session_container, session_label):
     try:
         for acq in session_container.acquisitions.iter():
             for file in acq.files:
-                if file['type'] == 'dicom':
+                if (file['type'] == 'source code')  or (file['type'] == 'nifti'):
                     download_dir = ('/flywheel/v0/input/' + session_label)
                     if not os.path.exists(download_dir):
                         os.mkdir(download_dir)
@@ -24,6 +24,7 @@ def get_acq(session_container, session_label):
                     download_path = download_dir + '/' + file.name
                     file.download(download_path)
                     print(f"Downloaded file: {file.name}")
+                    
         return True  # Completed successfully
     
     except Exception as e:
@@ -94,19 +95,11 @@ def parse_config(
     # Create the BIDS directory structure
     setup_bids_directories(work_dir)
 
-    bids_config = '/flywheel/v0/examples/unity_QA/bids/dcm2bids_config.json'
-    dicom_dir = os.path.join(input_dir, ses_label)
-    extracted_dicom_dir = os.path.join(dicom_dir, 'extracted')
-    os.mkdir(extracted_dicom_dir)
-
-    for f in os.listdir(dicom_dir):
-        p = os.path.join(dicom_dir, f)
-        if os.path.splitext(f)[1] == '.zip':
-            zp = zipfile.ZipFile(p)
-            members = zp.namelist()
-            zp_path = zp.extract(members[0], path=dicom_dir)
-            shutil.move(zp_path, extracted_dicom_dir)
-    
-    import_dicom_folder(dicom_dir=extracted_dicom_dir, sub_name=sub_name, ses_name=ses_label, config=bids_config, projdir=work_dir)
+    import_dicom_folder(dicom_dir = os.path.join(input_dir, ses_label), 
+                        sub_name = sub_name, 
+                        ses_name = ses_label, 
+                        config = '/flywheel/v0/examples/unity_QA/bids/dcm2bids_config.json', 
+                        projdir = work_dir, 
+                        skip_dcm2niix = True)
 
     return work_dir, ouput_dir, sub_name, ses_label, config
