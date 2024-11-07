@@ -5,11 +5,10 @@ import flywheel
 from flywheel_gear_toolkit import GearToolkitContext
 import json
 import os
+import zipfile
+import shutil
 
 from ghost.bids import setup_bids_directories, import_dicom_folder
-from ghost.misc import ghost_path
-from ghost.phantom import Caliber137
-
 
 
 def get_acq(session_container, session_label):
@@ -32,7 +31,7 @@ def get_acq(session_container, session_label):
         return False  # Completed unsuccessfully
 
 def parse_config(
-    gear_context: GearToolkitContext,
+    gear_context: GearToolkitContext, input_id: str
      
 ) -> Tuple[str, str]: # Add dict for each set of outputs
     """Parse the config and other options from the context, both gear and app options.
@@ -55,11 +54,17 @@ def parse_config(
 
     # Read API key in config file
     api_key = (config['inputs']['api-key']['key'])
-    input_id = (config['inputs']['input']['hierarchy']['id'])
-    input_container = gear_context.client.get(input_id)
 
-    print("API key is : ", api_key)
-    # print("input_container: ", input_container)
+    if not input_id:
+
+        try:
+            input_id = (config['inputs']['input']['hierarchy']['id'])
+        except KeyError:
+            print("Can not find the hirerachy ID in the config. If you are running locally with a custom file input try to execute the run script as\n   python3 run.py CUSTOM_ID")
+            
+
+    input_container = gear_context.client.get(input_id)
+    print(f"Input ID is: {input_id}", flush=True)
 
 
     # Get the subject id from the session id
@@ -70,7 +75,7 @@ def parse_config(
     print("subject label: ", subject.label)
     subject_label = subject.label
     subject_label = subject_label.replace("-", "")
-
+    sub_name = subject_label # For the phantom serial number in this case
 
     # Get the session id from the input file id
     # & extract the session container
@@ -88,16 +93,20 @@ def parse_config(
 
     # Create the BIDS directory structure
     setup_bids_directories(work_dir)
-    # Import DICOMs. Use the example dataset
-    config = '/flywheel/v0/examples/unity_QA/bids/dcm2bids_config.json'
-    dicom_dir = input_dir #os.path.join(ghost_path(), "example_data/UNITY_QA/DICOM")
-    sub_name = subject_label # For the phantom serial number in this case
 
-    # Loop over the sessions
+    bids_config = '/flywheel/v0/examples/unity_QA/bids/dcm2bids_config.json'
+    dicom_dir = os.path.join(input_dir, ses_label)
+    extracted_dicom_dir = os.path.join(dicom_dir, 'extracted')
+    os.mkdir(extracted_dicom_dir)
+
     for f in os.listdir(dicom_dir):
         p = os.path.join(dicom_dir, f)
-        if os.path.isdir(p):
-            import_dicom_folder(dicom_dir=p, sub_name=sub_name, ses_name=f, config=config, projdir=work_dir)
+        if os.path.splitext(f)[1] == '.zip':
+            zp = zipfile.ZipFile(p)
+            members = zp.namelist()
+            zp_path = zp.extract(members[0], path=dicom_dir)
+            shutil.move(zp_path, extracted_dicom_dir)
+    
+    import_dicom_folder(dicom_dir=extracted_dicom_dir, sub_name=sub_name, ses_name=ses_label, config=bids_config, projdir=work_dir)
 
-
-    return input_dir, ouput_dir, subject_label, session_label
+    return work_dir, ouput_dir, sub_name, ses_label, config

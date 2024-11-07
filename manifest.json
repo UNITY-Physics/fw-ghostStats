@@ -2,7 +2,27 @@
   "author": "Emil Ljungberg, Niall Bourke",
   "cite": "Emil Ljungberg (2024) Characterization of ultra-low field MRI scanners for multi-centre quantitative neuroimaging",
   "command": "python3 /flywheel/v0/run.py",
-  "config": {},
+  "config": {
+    "nnUNetDevice": {
+      "default": "cuda",
+      "description": "Device to run nnUNet prediction on",
+      "enum": [
+        "cuda",
+        "cpu"
+      ],
+      "type": "string"
+    },
+    "runMimicSeg": {
+      "default": true,
+      "description": "Run template segmentation of mimics",
+      "type": "boolean"
+    },
+    "runFiducialSeg": {
+      "default": true,
+      "description": "Run nnUNet fiducial segmentation",
+      "type": "boolean"
+    }
+  },
   "custom": {
     "analysis-level": "participant",
     "flywheel": {
@@ -22,7 +42,7 @@
     },
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/ghost:0.0.1"
+      "image": "flywheel/ghost:0.0.3a"
     },
     "kcl-app-binary": "app/main.py",
     "kcl-app-modalities": [
@@ -70,5 +90,5 @@
   "name": "ghost",
   "source": "https://github.com/UNITY-Physics/fw-GHOST",
   "url": "https://github.com/UNITY-Physics/fw-GHOST",
-  "version": "0.0.1"
+  "version": "0.0.3a"
 }
