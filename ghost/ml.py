@@ -74,6 +74,7 @@ def run_prediction(input, output, scan_plane, device='cuda', keep=False, verbose
             print(f)
         except:
             print(f'Could not copy to dest {f}')
+    
     if not keep:
         print("Cleaning up temporary directory")
         shutil.rmtree(tmpdir)

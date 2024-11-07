@@ -16,15 +16,17 @@ from .utils import calc_psnr, calc_ssim
 from .ml import run_prediction
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
-
+nnUNet_config = '/home/em2876lj/Code/GHOST/nnUnet_models/models.json'
 ### Helper functions ###
 
 def _logprint(s):
     t = datetime.now().strftime("%H:%M:%S")
     print(f"[{t}] {s}")
 
+
 def copy_file(fsource, fdest):
     shutil.copy(fsource, _check_paths(fdest))
+
 
 def _update_layout(layout):
     return bids.BIDSLayout(root=layout.root, derivatives=layout.derivatives['derivatives'].root)
@@ -291,7 +293,6 @@ def calc_runs_psnr(layout, bids_img, ow=False):
 
         return PSNR
 
-
 def parse_fiducial_positions(layout, img, phantom, ow=False):
     """
     Parse fiducial positions from an image and calculate the differences between the parsed positions and reference positions.
@@ -354,7 +355,7 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
 
         return positions
 
-def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_desc='segRegFidLabels', aff_fname='FidPointAffine', ow=False):
+def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_desc='segRegFidLabels', aff_fname='FidPointAffine', transform_type='affine', ow=False):
 
     ent = img.get_entities()
     
@@ -382,7 +383,7 @@ def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_d
         ref_loc = phantom.get_ref_fiducial_locations().T
 
         # Affine registration with points
-        reg = ants.fit_transform_to_paired_points(seg_pos, ref_loc, transform_type='affine')
+        reg = ants.fit_transform_to_paired_points(seg_pos, ref_loc, transform_type=transform_type)
         new_points = np.zeros_like(ref_loc)
         for i in range(ref_loc.shape[0]):
             new_points[i,:] = ants.apply_ants_transform_to_point(reg.invert(), seg_pos[i,:])
@@ -409,7 +410,6 @@ def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_d
         np.savetxt(fname, mat)
 
         return seg_df
-
 
 def get_fiducial_points2(layout, img, phantom, ow=False):
     # 1. Find position of fiducial in template space
@@ -473,6 +473,35 @@ def get_intensity_stats(layout, bids_img, seg_name, ow=False):
         df.drop(['t', 'Count', 'Mass'], axis=1, inplace=True)
         df.reset_index(inplace=True, drop=True)
         df.to_csv(fname)
+
+def get_fiducial_position_nnuNet(layout, img, phantom, out_stat='FidPosUNetAxis', input_desc='segFidLabelsUNetAxis', aff_fname='FidPointAffine', ow=False):
+    
+    ent = img.get_entities()
+    
+    try:
+        run = ent['run']
+    except KeyError:
+        run = None
+    
+    fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc=out_stat)
+    
+    if _check_run(fname, ow):
+    
+        seg_fname = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
+                        session=ent['session'], desc=input_desc, run=run, reconstruction=ent['reconstruction'])[0]
+        
+        seg = ants.image_read(seg_fname.path)
+
+        all_reg, dfs = phantom.point_reg_fiducials_2D(seg, acq_axis=ent['reconstruction'])
+
+        mat = np.zeros((len(all_reg),6))
+        for i in range(len(all_reg)):
+            mat[i,:] = all_reg[i]
+
+        np.savetxt(_make_deriv_fname(layout, ent, extension='.txt', tool='ants', desc=aff_fname), mat)
+        
+        seg_df = pd.concat(dfs)
+        seg_df.to_csv(fname)
 
 
 ### Study specific workflows ###
