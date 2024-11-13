@@ -52,7 +52,7 @@
     },
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/ghost:0.0.4a"
+      "image": "flywheel/ghost:0.0.5"
     },
     "kcl-app-binary": "app/main.py",
     "kcl-app-modalities": [
@@ -95,5 +95,5 @@
   "name": "ghost",
   "source": "https://github.com/UNITY-Physics/fw-GHOST",
   "url": "https://github.com/UNITY-Physics/fw-GHOST",
-  "version": "0.0.4a"
+  "version": "0.0.5"
 }
