@@ -48,7 +48,6 @@ def parse_config(
     work_dir = '/flywheel/v0/work/'
     ouput_dir = '/flywheel/v0/output/'
 
-
     # Read config.json file
     p = open('/flywheel/v0/config.json')
     config = json.loads(p.read())
@@ -57,7 +56,6 @@ def parse_config(
     api_key = (config['inputs']['api-key']['key'])
 
     if not input_id:
-
         try:
             input_id = (config['inputs']['input']['hierarchy']['id'])
         except KeyError:

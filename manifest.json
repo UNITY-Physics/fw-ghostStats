@@ -12,6 +12,11 @@
       ],
       "type": "string"
     },
+    "nnUNetQuick": {
+      "default": false,
+      "description": "Run nnUNetv2_predict with --disable-tta for faster but less accurate prediction",
+      "type": "boolean"
+    },
     "runMimicSeg": {
       "default": true,
       "description": "Run template segmentation of mimics",
@@ -20,6 +25,11 @@
     "runFiducialSeg": {
       "default": true,
       "description": "Run nnUNet fiducial segmentation",
+      "type": "boolean"
+    },
+    "reRun": {
+      "default": false,
+      "description": "Run analysis again even if it finds previous one",
       "type": "boolean"
     }
   },
@@ -42,7 +52,7 @@
     },
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/ghost:0.0.3b"
+      "image": "flywheel/ghost:0.0.4a"
     },
     "kcl-app-binary": "app/main.py",
     "kcl-app-modalities": [
@@ -76,12 +86,7 @@
   "inputs": {
     "api-key": {
       "base": "api-key",
-      "read-only": true
-    },
-    "input": {
-      "base": "file",
-      "description": "input file",
-      "optional": false
+      "read-only": false
     }
   },
   "label": "ghost",
@@ -90,5 +95,5 @@
   "name": "ghost",
   "source": "https://github.com/UNITY-Physics/fw-GHOST",
   "url": "https://github.com/UNITY-Physics/fw-GHOST",
-  "version": "0.0.3b"
+  "version": "0.0.4a"
 }

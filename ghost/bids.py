@@ -235,13 +235,13 @@ def get_temperature(layout, thermo, phantom, plot_on=False):
     return temperature
 
 
-def segment_fiducials(layout, img, device='cpu', ow=False):
+def segment_fiducials(layout, img, device='cpu', quick=False, ow=False):
     
     ent = img.get_entities()
     fname = _make_deriv_fname(layout, ent, extension='.nii.gz', tool='ghost', desc='segFidLabelsUNetAxis')
     
     if _check_run(fname, ow):
-        run_prediction(input=img.path, output=fname, scan_plane=ent['reconstruction'], device=device, keep=False)
+        run_prediction(input=img.path, output=fname, scan_plane=ent['reconstruction'], device=device, quick=quick, keep=False)
 
     return fname
 

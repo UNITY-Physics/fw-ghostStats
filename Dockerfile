@@ -29,7 +29,9 @@ RUN pip3 install .
 # Fix directory names
 RUN mkdir /root/ghost_data/nnUNet/nnUNet_results && \
     ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset227_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset237_UNITY && \
-    ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset237_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset337_UNITY && \
-    ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset247_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset437_UNITY
+    # ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset237_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset337_UNITY && \
+    # ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset247_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset437_UNITY
+    rm -r /root/ghost_data/nnUnet_models/nnUnet_results/Dataset237_UNITY && \
+    rm -r /root/ghost_data/nnUnet_models/nnUnet_results/Dataset247_UNITY
 
 ENTRYPOINT ["python3","/flywheel/v0/run.py"] 
