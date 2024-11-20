@@ -12,11 +12,12 @@ import pandas as pd
 from skimage.metrics import normalized_mutual_information
 
 from .phantom import Caliber137
-from .utils import calc_psnr, calc_ssim
+from .utils import calc_psnr
 from .ml import run_prediction
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 nnUNet_config = '/home/em2876lj/Code/GHOST/nnUnet_models/models.json'
+
 ### Helper functions ###
 
 def _logprint(s):
@@ -287,7 +288,8 @@ def calc_runs_psnr(layout, bids_img, ow=False):
 
         MSE, PSNR = calc_psnr(img1, img2, phmask)
         NMI = normalized_mutual_information(img1*phmask, img2*phmask)
-        SSIM = calc_ssim(img1, img2, phmask)
+        # SSIM = calc_ssim(img1, img2, phmask)
+        SSIM = 0
 
         df = pd.DataFrame({"MSE":[MSE], "PSNR":[PSNR], "NMI":[NMI], "SSIM":[SSIM]})
         df.to_csv(fname)

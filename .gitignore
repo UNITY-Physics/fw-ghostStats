@@ -137,3 +137,6 @@ doc/_build
 *.nii
 *.nii.gz
 *.mat
+work
+config.json*
+.input_map.json
