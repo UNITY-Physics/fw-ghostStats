@@ -5,12 +5,7 @@ numpy
 openpyxl
 pandas
 scipy
-scikit-learn
-pydicom
 pybids
+scikit-image
 tqdm
 SimpleITK
-dcm2bids
-dcm2niix
-sphinx
-sphinx_rtd_theme

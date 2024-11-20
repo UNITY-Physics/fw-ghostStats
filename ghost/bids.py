@@ -14,6 +14,7 @@ from skimage.metrics import normalized_mutual_information
 from .phantom import Caliber137
 from .utils import calc_psnr, calc_ssim
 from .ml import run_prediction
+from .dataio import safe_image_read
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 nnUNet_config = '/home/em2876lj/Code/GHOST/nnUnet_models/models.json'
@@ -140,7 +141,7 @@ def warp_mask(layout, bids_img, seg, phantom, xfm_type='SyN', weighting='T2w', o
         xfm = [_get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')]
 
     if _check_run(fname_out, ow):
-        seg_warp = phantom.warp_seg(target_img=ants.image_read(bids_img.path), xfm=xfm, seg=seg)
+        seg_warp = phantom.warp_seg(target_img=safe_image_read(bids_img.path), xfm=xfm, seg=seg)
         ants.image_write(seg_warp, _check_paths(fname_out))
             
 
@@ -154,7 +155,7 @@ def reg_img(layout, bids_img, phantom, do_syn=False, weighting='T2w', ow=False):
 
     if _check_run(fname_aff, ow):
 
-        inv_xfm, fwd_xfm = phantom.reg_to_phantom(ants.image_read(bids_img.path), do_syn=do_syn, weighting=weighting)
+        inv_xfm, fwd_xfm = phantom.reg_to_phantom(safe_image_read(bids_img.path), do_syn=do_syn, weighting=weighting)
         
         _logprint(f'Done. {inv_xfm}')
         copy_file(inv_xfm[0], fname_aff)
@@ -186,7 +187,7 @@ def refine_mimics_2D_axi(layout, bids_img, seg, phantom, ow=False):
     fname_2D = _make_deriv_fname(layout, ent, tool='ghost', desc=f'seg{seg}2D')
 
     if _check_run(fname_2D, ow):
-        seg_img = ants.image_read(_get_seg_fname(layout, bids_img, desc=f'seg{seg}'))
+        seg_img = safe_image_read(_get_seg_fname(layout, bids_img, desc=f'seg{seg}'))
         xfm = _get_xfm_fname(layout, bids_img, extension='.mat', desc='0GenericAffine')
 
         refined_seg_img = phantom.mimic_3D_to_2D_axial(seg_img=seg_img, seg_name=seg, xfm_fname=xfm, radius=None)
@@ -195,7 +196,7 @@ def refine_mimics_2D_axi(layout, bids_img, seg, phantom, ow=False):
         return refined_seg_img
 
     else:
-        return ants.image_read(fname_2D)
+        return safe_image_read(fname_2D)
 
 
 def find_best_slice(layout, bids_img, seg, slthick=5):
@@ -208,11 +209,11 @@ def warp_thermo(layout, temp_bids_img, t2_bids_img, ow=False):
     out_fname = _make_deriv_fname(layout, temp_bids_img.get_entities(), tool='ghost', desc='regT2wN4')
 
     if _check_run(out_fname, ow):
-        moving = ants.image_read(temp_bids_img.path)
-        fixed = ants.image_read(t2_bids_img.path)
+        moving = safe_image_read(temp_bids_img.path)
+        fixed = safe_image_read(t2_bids_img.path)
         reg = ants.registration(fixed, moving, type_of_transform='antsRegistrationSyN[s]')
         
-        phantom_mask = ants.image_read(_make_deriv_fname(layout, t2_bids_img.get_entities(), desc=f'segphantomMask', tool='ghost'))
+        phantom_mask = safe_image_read(_make_deriv_fname(layout, t2_bids_img.get_entities(), desc=f'segphantomMask', tool='ghost'))
         N4 = ants.n4_bias_field_correction(ants.denoise_image(reg['warpedmovout'], mask=phantom_mask), mask=phantom_mask, return_bias_field=True)
         
         ants.image_write(reg['warpedmovout']/N4, out_fname)
@@ -321,7 +322,7 @@ def parse_fiducial_positions(layout, img, phantom, ow=False):
         seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
                         session=ent['session'], desc='segRegFid', run=run, reconstruction=ent['reconstruction'])[0]
 
-        fiducials = ants.image_read(seg.path)
+        fiducials = safe_image_read(seg.path)
         ent = seg.get_entities()
 
         affine = np.array(phantom.get_specs()['FiducialAffine'])
@@ -370,7 +371,7 @@ def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_d
         seg_fname = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
                         session=ent['session'], desc=input_desc, run=run, reconstruction=ent['reconstruction'])[0]
         
-        seg = ants.image_read(seg_fname.path)
+        seg = safe_image_read(seg_fname.path)
 
         # Label stats
         seg_df = ants.label_stats(image=seg, label_image=seg)
@@ -413,7 +414,7 @@ def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_d
 
 def get_fiducial_points2(layout, img, phantom, ow=False):
     # 1. Find position of fiducial in template space
-    fid = ants.image_read(phantom.get_seg_nii('fiducials'))
+    fid = safe_image_read(phantom.get_seg_nii('fiducials'))
     temp_points = np.zeros((15,3))
 
     for i in range(15):
@@ -468,7 +469,7 @@ def get_intensity_stats(layout, bids_img, seg_name, ow=False):
         seg = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], session=ent['session'],
                         run=run, reconstruction=ent['reconstruction'], desc=seg_name)[0]
         
-        df = ants.label_stats(ants.image_read(bids_img.path), ants.image_read(seg.path))
+        df = ants.label_stats(safe_image_read(bids_img.path), safe_image_read(seg.path))
         df = df.drop(df[df['LabelValue'] == 0.0].index)
         df.drop(['t', 'Count', 'Mass'], axis=1, inplace=True)
         df.reset_index(inplace=True, drop=True)
@@ -490,7 +491,7 @@ def get_fiducial_position_nnuNet(layout, img, phantom, out_stat='FidPosUNetAxis'
         seg_fname = layout.get(scope='derivatives', suffix='T2w', subject=ent['subject'], 
                         session=ent['session'], desc=input_desc, run=run, reconstruction=ent['reconstruction'])[0]
         
-        seg = ants.image_read(seg_fname.path)
+        seg = safe_image_read(seg_fname.path)
 
         all_reg, dfs = phantom.point_reg_fiducials_2D(seg, acq_axis=ent['reconstruction'])
 

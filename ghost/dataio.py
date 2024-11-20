@@ -7,7 +7,16 @@ import numpy as np
 from bids.layout.models import BIDSImageFile
 from nibabel.nifti1 import Nifti1Image
 from numpy import ndarray
+from nibabel.filebasedimages import ImageFileError
 
+def safe_image_read(fname):
+    try:
+        nib.load(fname)
+    except ImageFileError as e:
+        print("Unable to open file")
+        return e
+
+    return ants.image_read(fname)
 
 def load_4D_nifti(img, vol=None, mag=False):
 

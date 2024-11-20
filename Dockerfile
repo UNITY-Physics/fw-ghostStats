@@ -1,42 +1,27 @@
-FROM ubuntu:jammy-20240427
-ARG PLATFORM="linux-cpu"
+FROM --platform=linux/amd64 ubuntu:jammy
+# Ugly way to build on M1 to ensure it builds on the right platform
 
 RUN ln -snf /usr/share/zoneinfo/$CONTAINER_TIMEZONE /etc/localtime && echo $CONTAINER_TIMEZONE > /etc/timezone
 
 WORKDIR /opt
-
 # Pre reqs
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y python3 pip curl wget git cmake  libpng-dev
+    apt-get install -y python3 pip curl wget git cmake libpng-dev
 
-# Install pytorch
-RUN if [ "$PLATFORM" = "linux-cuda" ]; then \
-        pip3 install torch torchvision torchaudio; \
-    elif [ "$PLATFORM" = "linux-cpu" ]; then \
-        pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
-    elif [ "$PLATFORM" = "mac" ]; then \
-        pip3 install torch torchvision torchaudio; \
-    else \
-        echo "Invalid platform argument: ${PLATFORM}"; \
-    fi
+RUN mkdir /root/ghost_data
 
+# Configure Flywheel
+ENV FLYWHEEL="/flywheel/v0"
 
-# Install nnUNet
-RUN python3 -m pip install nnunetv2
+# Instal Flywheel depedencies
+COPY ./ $FLYWHEEL/
+WORKDIR $FLYWHEEL
+RUN mv $FLYWHEEL/Caliber137 /root/ghost_data/Caliber137
 
-RUN mkdir /root/ghost_data && \
-    mkdir /root/ghost_data/phantom_template && \
-    mkdir /root/ghost_data/nnUnet_models && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_raw && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_results && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_preprocessed
+RUN pip3 install flywheel-gear-toolkit && \
+    pip3 install --upgrade flywheel-sdk
 
-ENV nnUNet_raw=/root/ghost_data/nnUnet_models/nnUnet_raw
-ENV nnUNet_results=/root/ghost_data/nnUnet_models/nnUnet_results
-ENV nnUNet_preprocessed=/root/ghost_data/nnUnet_models/nnUnet_preprocessed
-
-COPY . /usr/local/src/ghost
-WORKDIR /usr/local/src/ghost
 RUN python3 -m pip install .
-RUN ghost setup --all
+
+ENTRYPOINT ["python3","/flywheel/v0/run.py"]
