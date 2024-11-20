@@ -12,36 +12,28 @@ from flywheel_gear_toolkit import GearToolkitContext
 
 import ghost.bids as gb
 from ghost.phantom import Caliber137
-from utils.parser2 import parse_config, download_dataset
+from utils.parser import parse_config, download_dataset
 
-# The gear is split up into 2 main components. The run.py file which is executed
-# when the container runs. The run.py file then imports the rest of the gear as a
-# module.
 
 log = logging.getLogger(__name__)
 
 def main(context: GearToolkitContext) -> None:
 
-    # Future check for if analysis already ran successfully
-    # if analysis.gear_info is not None and analysis.gear_info.name == gear and analysis.gear_info.version == gearVersion and analysis.get("job").get("state") == "complete":
-
-    # Parses config and runs
     try:
         my_id = sys.argv[1]
-        print(f"Running with user supplied ID: {my_id}")
+        gb._logprint(f"Running with user supplied ID: {my_id}")
     except:
-        print("No ID supplied. Reading from input file")
+        gb._logprint("No ID supplied. Reading from input file")
         my_id = None
         
     container, config, manifest, inputs = parse_config(context, input_id=my_id)
     
-    # Change this to also output the session IDs
     subses = download_dataset(context, container, config)
 
-    print("Indexing folder structure")    
+    gb._logprint("Indexing folder structure")    
     layout = bids.BIDSLayout(root=f'{config["work_dir"]}/rawdata', derivatives=f'{config["work_dir"]}/derivatives')
 
-    print("running main script...")
+    gb._logprint("Running main script...")
     
     for sub in subses.keys():
         for ses in subses[sub].keys():
@@ -76,13 +68,9 @@ def main(context: GearToolkitContext) -> None:
 
     gb._logprint("Copying output files")
 
-    if not os.path.exists(config['output_dir']): # Not made when running locally
+    if not os.path.exists(config['output_dir']):
         os.makedirs(config['output_dir'])
 
-    # for fpath in out_files:
-    #     fname = os.path.basename(fpath)
-    #     gb._logprint(fname)
-    #     shutil.copy(fpath, os.path.join(config['output_dir'],fname))
 
 
 def parse_input_files(layout, sub, ses, show_summary=True):
@@ -148,7 +136,6 @@ def fw_process_subject(layout, sub, ses, run_mimics=True, run_fiducials=True, un
     deriv_fnames = []
     raw_fnames = [x.path for x in all_t2]
 
-    ### --- Processing --- ###
     gb._logprint("--- Register to template ---")
     for img in all_t2:
         gb.reg_img(layout, img, phantom, ow=False)
@@ -184,16 +171,6 @@ def fw_process_subject(layout, sub, ses, run_mimics=True, run_fiducials=True, un
                 except:
                     warnings.warn(f"Failed to run get_intensity_stats for mask {mask} and {img}")
 
-        # if len(my_files['axi'])==2:
-        #     gb._logprint("Calculating PSNR")
-        #     try:
-        #         fname, PSNR = gb.calc_runs_psnr(layout, my_files['axi'][0], ow=True)
-        #         deriv_fnames.append(fname)
-        #     except:
-        #         warnings.warn(f"Failed to run calc_runs_psnr for axial image")
-        # else:
-        #     gb._logprint("Did not find 2 axial runs. Skipping SNR calculation")
-
     if run_fiducials:
         gb._logprint("Segmenting fiducial arrays")
         layout = gb._update_layout(layout)
@@ -203,15 +180,6 @@ def fw_process_subject(layout, sub, ses, run_mimics=True, run_fiducials=True, un
                 deriv_fnames.append(fname)
             except:
                 warnings.warn(f"Failed to run segment_fiducials on device={unet_device} for image {img}")
-
-        # gb._logprint("Parsing fiducial locations")
-        # for img in my_files['axi']:
-        #     # try:
-        #     df, fname = gb.get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet',input_desc='segFidLabelsUNetAxis',
-        #                                             aff_fname='FidPointUNetRigid', transform_type='rigid', ow=True)
-        #     deriv_fnames.append(fname)
-        #     # except:
-        #         # warnings.warn(f"Failed to run get_fiducials_positions for {img}")
 
     return raw_fnames, deriv_fnames
 
