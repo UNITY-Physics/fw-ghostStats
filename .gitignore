@@ -137,3 +137,5 @@ doc/_build
 *.nii
 *.nii.gz
 *.mat
+Caliber137/
+config.json*

@@ -60,9 +60,11 @@ def main(context: GearToolkitContext) -> None:
         os.makedirs(config['output_dir'])
     
     for sub in dataset_ids.keys():
+        
         for ses in dataset_ids[sub]['sessions'].keys():
             csv_files = [x.path for x in layout.get(scope='derivatives', subject=sub, session=ses, extension='.csv')]
             gb._logprint(f"Uloading data for {sub} {ses}")
+            
             if len(csv_files) > 0:
                 # Create a new analysis
                 gversion = manifest["version"]
@@ -87,6 +89,7 @@ def main(context: GearToolkitContext) -> None:
 
 
 def process_session(layout, phantom, sub, ses):
+
     # Calculate PSNR
     try:
         axi1 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=1)[0]
