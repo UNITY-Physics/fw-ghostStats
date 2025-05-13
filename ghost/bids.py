@@ -12,16 +12,17 @@ import pandas as pd
 from skimage.metrics import normalized_mutual_information
 
 from .phantom import Caliber137
-from .utils import calc_psnr, calc_ssim
+from .utils import calc_psnr
 from .ml import run_prediction
 
 DERIVPATTERN = "sub-{subject}[/ses-{session}]/{tool}/sub-{subject}[_ses-{session}][_rec-{reconstruction}][_run-{run}][_desc-{desc}]_{suffix}.{extension}"
 nnUNet_config = '/home/em2876lj/Code/GHOST/nnUnet_models/models.json'
+
 ### Helper functions ###
 
 def _logprint(s):
     t = datetime.now().strftime("%H:%M:%S")
-    print(f"[{t}] {s}")
+    print(f"[{t}] {s}", flush=True)
 
 
 def copy_file(fsource, fdest):
@@ -78,7 +79,7 @@ def _get_xfm_fname(layout, base_img, tool='ants', extension='mat', desc='0Generi
 
 ### Tools to use ###
 
-def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
+def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir, skip_dcm2niix=False):
     """
     Imports DICOM files from a specified directory into the BIDS format.
 
@@ -93,7 +94,9 @@ def import_dicom_folder(dicom_dir, sub_name, ses_name, config, projdir):
         None
     """
 
-    cmd = f'dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
+    cmd = f'dcm2bids --force_dcm2bids -d {shlex.quote(dicom_dir)} -p {sub_name} -s {ses_name} -c {config} -o {projdir}/rawdata -l DEBUG'
+    if skip_dcm2niix:
+        cmd += ' --skip_dcm2niix'
     sp.Popen(shlex.split(cmd)).communicate()
 
 
@@ -142,7 +145,8 @@ def warp_mask(layout, bids_img, seg, phantom, xfm_type='SyN', weighting='T2w', o
     if _check_run(fname_out, ow):
         seg_warp = phantom.warp_seg(target_img=ants.image_read(bids_img.path), xfm=xfm, seg=seg)
         ants.image_write(seg_warp, _check_paths(fname_out))
-            
+    
+    return fname_out
 
 def reg_img(layout, bids_img, phantom, do_syn=False, weighting='T2w', ow=False):
     
@@ -192,10 +196,7 @@ def refine_mimics_2D_axi(layout, bids_img, seg, phantom, ow=False):
         refined_seg_img = phantom.mimic_3D_to_2D_axial(seg_img=seg_img, seg_name=seg, xfm_fname=xfm, radius=None)
         ants.image_write(refined_seg_img, fname_2D)
 
-        return refined_seg_img
-
-    else:
-        return ants.image_read(fname_2D)
+    return fname_2D
 
 
 def find_best_slice(layout, bids_img, seg, slthick=5):
@@ -235,14 +236,15 @@ def get_temperature(layout, thermo, phantom, plot_on=False):
     return temperature
 
 
-def segment_fiducials(layout, img, device='cpu', ow=False):
+def segment_fiducials(layout, img, device='cpu', quick=False, ow=False):
     
     ent = img.get_entities()
     fname = _make_deriv_fname(layout, ent, extension='.nii.gz', tool='ghost', desc='segFidLabelsUNetAxis')
     
     if _check_run(fname, ow):
-        run_prediction(input=img.path, output=fname, scan_plane=ent['reconstruction'], device=device, keep=False)
+        run_prediction(input=img.path, output=fname, scan_plane=ent['reconstruction'], device=device, quick=quick, keep=False)
 
+    return fname
 
 ### Stats ###
 def calc_runs_psnr(layout, bids_img, ow=False):
@@ -265,6 +267,7 @@ def calc_runs_psnr(layout, bids_img, ow=False):
     ent = bids_img.get_entities()
     fname = _make_deriv_fname(layout, ent, extension='.csv', tool='stats', desc='PSNR')
 
+
     if _check_run(fname, ow):
 
         img1 = layout.get(scope='raw', extension='.nii.gz', 
@@ -285,13 +288,14 @@ def calc_runs_psnr(layout, bids_img, ow=False):
 
         MSE, PSNR = calc_psnr(img1, img2, phmask)
         NMI = normalized_mutual_information(img1*phmask, img2*phmask)
-        SSIM = calc_ssim(img1, img2, phmask)
+        # SSIM = calc_ssim(img1, img2, phmask)
+        SSIM = 0
 
         df = pd.DataFrame({"MSE":[MSE], "PSNR":[PSNR], "NMI":[NMI], "SSIM":[SSIM]})
         df.to_csv(fname)
         _logprint(f"Wrote SNR file to {fname}")
 
-        return PSNR
+    return fname, PSNR
 
 def parse_fiducial_positions(layout, img, phantom, ow=False):
     """
@@ -409,7 +413,7 @@ def get_fiducial_positions2(layout, img, phantom, out_stat='FidPosReal', input_d
         mat = reg.parameters.reshape([4,3])
         np.savetxt(fname, mat)
 
-        return seg_df
+        return seg_df, fname
 
 def get_fiducial_points2(layout, img, phantom, ow=False):
     # 1. Find position of fiducial in template space
@@ -473,6 +477,8 @@ def get_intensity_stats(layout, bids_img, seg_name, ow=False):
         df.drop(['t', 'Count', 'Mass'], axis=1, inplace=True)
         df.reset_index(inplace=True, drop=True)
         df.to_csv(fname)
+    
+    return fname
 
 def get_fiducial_position_nnuNet(layout, img, phantom, out_stat='FidPosUNetAxis', input_desc='segFidLabelsUNetAxis', aff_fname='FidPointAffine', ow=False):
     
@@ -519,17 +525,55 @@ def unity_qa_process_subject(layout, sub, ses):
     """
     
     phantom = Caliber137()
-    axi1 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=1)[0]
-    axi2 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=2)[0]
-    sag = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='sag', session=ses)[0]
-    cor = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='cor', session=ses)[0]
-    fisp = layout.get(scope='raw', extension='.nii.gz', subject=sub, suffix='PDw', session=ses)[0]
+    axi = []
+    sag = None
+    cor = None
+    fisp = None
+    
+    # Axial
+    files_axi = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses)
+    if len(files_axi)==2:
+        try:
+            axi1 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=1)[0]
+            axi2 = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses, run=2)[0]
+            axi = [axi1, axi2]
+            print(f'Found {len(files_axi)} axial scans')
+        except:
+            print("Expected two axial images with run 1 and 2. But did not work")
+    
+    elif len(files_axi)==1:
+        axi.append(layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='axi', session=ses)[0])
+        print(f'Found {len(files_axi)} axial scans')
+
+    else:
+        print(f'Expected to find at least 1 axial scan. Found {len(files_axi)} axial scans')
+
+    # Sag
+    files_sag = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='sag', session=ses)
+    if len(files_sag) == 1:
+        sag = files_sag[0]
+    else:
+        print(f"Expected to find only one sag scan. Found {len(files_sag)}")
+
+    # Cor
+    files_cor = layout.get(scope='raw', extension='.nii.gz', subject=sub, reconstruction='cor', session=ses)
+    if len(files_cor) == 1:
+        cor = files_cor[0]
+    else:
+        print(f"Expected to find 1 cor scan. Found {len(files_cor)}")
+
+    # FISP
+    files_fisp = layout.get(scope='raw', extension='.nii.gz', subject=sub, suffix='PDw', session=ses)
+    if len(files_fisp) == 1:
+        fisp = files_fisp[0]
+    else:
+        print(f"Expected to find 1 fisp scan. Found {len(files_cor)}")
 
     _logprint(f'Starting for {sub}-{ses}')
     
     mimics = ['T1mimics', 'T2mimics', 'ADC']
     all_masks = [*mimics, 'LC', 'phantomMask']
-    all_t2 = [axi1, axi2, sag, cor]
+    all_t2 = [*axi, sag, cor]
 
     # Warp the masks
     _logprint("--- Register to template ---")
@@ -539,41 +583,33 @@ def unity_qa_process_subject(layout, sub, ses):
     _logprint('Warping masks')
     layout = _update_layout(layout)
     for img in all_t2:
-        for mask in all_masks:
-            warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
+        if img:
+            for mask in all_masks:
+                warp_mask(layout, img, mask, phantom, xfm_type='Rigid', ow=False)
 
     _logprint('Refining 2D masks')
     layout = _update_layout(layout)
-    for img in [axi1, axi2]:
+    for img in axi:
         for mask in mimics:
             refine_mimics_2D_axi(layout, img, mask, phantom, ow=False)
 
     _logprint('Getting intensity stats')            
     layout = _update_layout(layout)
-    for img in [axi1, axi2]:
+    for img in axi:
         for mask in mimics:
             get_intensity_stats(layout, img, f"seg{mask}", ow=False)
     
-    _logprint("Getting fiducial arrays")
-    layout = _update_layout(layout)
-    for img in all_t2:
-        get_fiducials(layout, img, phantom, ow=False)
+    # _logprint("Getting fiducial arrays")
+    # layout = _update_layout(layout)
+    # for img in all_t2:
+        # get_fiducials(layout, img, phantom, ow=False)
     
-    _logprint("Parsing fiducial locations")
-    for img in [axi1, axi2, sag, cor]:
-        _logprint(img.filename)
-        get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet', input_desc='segFidLabelsUNet', aff_fname='FidPointUNetAffine', ow=True)
-
-    _logprint("Getting temperature")
-    layout = _update_layout(layout)
-    warp_thermo(layout, fisp, axi1, ow=False)
-    
-    layout = _update_layout(layout)
-    get_temperature(layout, 
-                    thermo=layout.get(scope='derivatives', suffix='PDw', subject=sub, session=ses, desc='regT2wN4')[0],
-                    phantom=phantom, plot_on=False)
-
+    # _logprint("Parsing fiducial locations")
+    # for img in [axi1, axi2, sag, cor]:
+        # _logprint(img.filename)
+        # get_fiducial_positions2(layout, img, phantom, out_stat='FidPosUNet', input_desc='segFidLabelsUNet', aff_fname='FidPointUNetAffine', ow=True)
     
     _logprint("Calculating PSNR")
-    calc_runs_psnr(layout, axi1, ow=True)
+    if len(axi)==2:
+        calc_runs_psnr(layout, axi[0], ow=True)
 

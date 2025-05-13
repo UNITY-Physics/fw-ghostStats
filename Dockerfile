@@ -1,42 +1,37 @@
-FROM ubuntu:jammy-20240427
-ARG PLATFORM="linux-cpu"
+FROM nialljb/ghost-base:0.0.1 AS base
 
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set timezone handling
+ENV CONTAINER_TIMEZONE=UTC
 RUN ln -snf /usr/share/zoneinfo/$CONTAINER_TIMEZONE /etc/localtime && echo $CONTAINER_TIMEZONE > /etc/timezone
 
 WORKDIR /opt
 
-# Pre reqs
-RUN apt-get update && \
+# Install system dependencies
+RUN apt-get -y update && \
     apt-get -y upgrade && \
-    apt-get install -y python3 pip curl wget git cmake  libpng-dev
+    apt-get install -y python3 pip curl wget git cmake libpng-dev
 
-# Install pytorch
-RUN if [ "$PLATFORM" = "linux-cuda" ]; then \
-        pip3 install torch torchvision torchaudio; \
-    elif [ "$PLATFORM" = "linux-cpu" ]; then \
-        pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu; \
-    elif [ "$PLATFORM" = "mac" ]; then \
-        pip3 install torch torchvision torchaudio; \
-    else \
-        echo "Invalid platform argument: ${PLATFORM}"; \
-    fi
+# Configure Flywheel
+ENV FLYWHEEL="/flywheel/v0"
+WORKDIR $FLYWHEEL
 
+# Instal Flywheel depedencies
+COPY ./ $FLYWHEEL/
+RUN pip3 install flywheel-gear-toolkit && \
+    pip3 install --upgrade flywheel-sdk
 
-# Install nnUNet
-RUN python3 -m pip install nnunetv2
+# Install ghost
+RUN pip3 install .
 
-RUN mkdir /root/ghost_data && \
-    mkdir /root/ghost_data/phantom_template && \
-    mkdir /root/ghost_data/nnUnet_models && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_raw && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_results && \
-    mkdir /root/ghost_data/nnUnet_models/nnUnet_preprocessed
+# Fix directory names
+RUN mkdir /root/ghost_data/nnUNet/nnUNet_results && \
+    ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset227_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset237_UNITY && \
+    # ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset237_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset337_UNITY && \
+    # ln -s /root/ghost_data/nnUnet_models/nnUnet_results/Dataset247_UNITY /root/ghost_data/nnUNet/nnUNet_results/Dataset437_UNITY
+    rm -r /root/ghost_data/nnUnet_models/nnUnet_results/Dataset237_UNITY && \
+    rm -r /root/ghost_data/nnUnet_models/nnUnet_results/Dataset247_UNITY
 
-ENV nnUNet_raw=/root/ghost_data/nnUnet_models/nnUnet_raw
-ENV nnUNet_results=/root/ghost_data/nnUnet_models/nnUnet_results
-ENV nnUNet_preprocessed=/root/ghost_data/nnUnet_models/nnUnet_preprocessed
-
-COPY . /usr/local/src/ghost
-WORKDIR /usr/local/src/ghost
-RUN python3 -m pip install .
-RUN ghost setup --all
+ENTRYPOINT ["python3","/flywheel/v0/run.py"] 
