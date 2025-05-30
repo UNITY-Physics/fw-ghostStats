@@ -1,70 +1,92 @@
-# GHOST - Flywheel gear ⚙️
+# GHOST - Global Harmonisation Of Scanner performance Testing
 
 ![logo](doc/_static/ghost_logo.png)
 
-## Usage on FlyWheel
+Tools to process data acquired with the UNITY Phantom (Caliber Mini Hybrid Phantom).
 
-Assumes that QA data is organized inside a project, each site is a subject, and scan sessions organized as sessions. The gear can be run on Project, Subject, or Session level. It will extract the container ID for the container it is executed from and then process all child containers from there. The data in each session must follow the structure outlined in the UNITY QA Paper. The gear assumes that data has been converted to **nifti+json** pairs before processing.
+## Install
 
-The processing follows these main steps:
-
-1. Find all child nodes from the current container (down to session level)
-2. Download the files to the container and organize in bids format.
-3. Run `fw_process_subject` on each session. This will segment all the compartments of the phantom.
-4. Upload the outputs in a custom analysis container associated with the session.
-
-Consider running the gear on subject level since the container includes the nnUNet segmentation models and is thus fairly large (~15 Gb). Running in parallel for each session would introduce a large overhead in terms of data transfer.
-
-Processing options:
-
-- `nnUNetDevice`: `cpu/cuda/mps` (Default `cpu`). The GPU option (`cuda`) requires execution on node with cuda installed.
-- `nnUNetQuick`: `true`/`false` (Default `false`). Uses the `--disable-tta` option for nnUNet for faster processing. Only to be used for debugging
-- `runMimicSeg`: `true`/`false` (Default `true`). To run the T1/T2/ADC mimic segmentation.
-- `runFiducialSeg`: `true`/`false` (Default `true`). To run the fiducial segmentation with nnUNet.
-
-To process the stats for the segmentations there is a separate, more lightweight gear called [`fw-ghostStats`](https://github.com/UNITY-Physics/fw-ghostStats).
-
-## Building container
-
-Build the container using the new `fw` interface
+Requires python3 but otherwise no special packages. Easiest way to install is to use `pip` inside a virtual/conda environment.
 
 ```sh
-fw-beta gear build
+python -m pip install -e .
 ```
 
-### Debugging container
-
-First create a config file, this assumes you have your FW API key stored as environment variable.
+If you want to set up a new python environment (recommended) with conda or pip you can use
 
 ```sh
-fw-beta gear config --create
-fw-beta gear config -i api-key=$FW_CLI_API_KEY
+conda create -n ghost python=3.9
 ```
 
-To run and debug the container, run it in interactive mode
+There are some additional data files that are required such as phantom template data and deep learning models. All of this is easily downloaded by running the following command after installation (remember to activate your environment!). 
 
 ```sh
-fw-beta gear run -i -e bash
+ghost setup --phantoms
 ```
 
-To execute the gear for a certain container you can provide the container ID as an input argument to the run script
+This will create a folder in your home directory called `ghost_data` which contains all the various phantom models.
+
+To build the documentation, run the following:
 
 ```sh
-python3 run.py container_id
+python3 make_doc.py
 ```
 
-To get the container ID you can use the fw api.
+You find the documentation by opening the [`index.html`](doc/_build/index.html) in your web browser.
 
-```python
-fw = flywheel.Client()
-proj = fw.projects.find_one('label=UNITY-QA')
-sub = proj.subjects.find_one('label=<MY_ID>')
-ses = sub.sessions.find_first() # Or find your desired one
+### nnUNet for fiducial segmentation (Optional)
+
+Segmentation of the geometric distortion fiducials is done using [nnUNet](https://github.com/MIC-DKFZ/nnUNet) which needs to be installed for this to be used. This is built into the container solutions (see below) but if you want to run this without a container you need to install nnUNet into your `ghost` python environment. Execute the following steps:
+
+1. Install [pytorch](https://pytorch.org/get-started/locally/) using the instructions on the pytorch website.
+2. Install nnUNet using `pip install nnunetv2`
+
+Once you have this set up, you can download and import the pre-trained nnUNet models
+
+```sh
+ghost setup --nnUNet
 ```
 
-Remember that you need to create the `work`/`input`/`output` directories in your local folder when running this on your local machine.
+This command will also import the models into the `ghost_data` directory. The `nnUNet` library typically requires you to set dedicated system paths for where to find the pre-trained models. In `ghost` we set these at run time to be the `ghost_data/nnUNet` directory to avoid clashes with your local setup.
 
-## Known bugs and improvements
+## Command line interface (CLI) usage
 
-- Can only process axial scans. The fiducial segmentation model does not work with the sagital or coronal scans for the moment.
-- There is no check for if previous analysis exists. Will always re-run.
+The GHOST package has a single binary which executes with the `ghost` command
+
+```sh
+usage: ghost <command> [<args>]
+
+    Available commands are
+    setup                    Download data
+    warp_rois                Warp ROIS
+
+```
+
+- `setup`: First command to run which downloads the reference data used for segmentation (options `--phantoms`, `--examples`, `--nnUnet`)
+- `warp_rois`: Warp phantom segmentations/labels to your input data.
+
+In general, the `ghost` command operates on file names on the command line. You can also call the underlying python functions which are found in `ghost.cmd`.
+
+## Python api
+
+In addition to the command line interface it is very easy to interact with `ghost` directly in python. Have a look at the example notebooks or the documentation for more information.
+
+## Examples
+
+A [sample dataset](https://figshare.com/articles/dataset/UNITY_Phantom_QA_example_data/26954056) is provided for local testing. You can download this to your `ghost_data` directory using
+
+```sh
+ghost setup --examples
+```
+
+The two examples below uses this example dataset.
+
+### UNITY QA BIDS analysis
+
+For larger datasets it is convenint to have data organised in a BIDS structure. For this purpose there is a `ghost_unity_bids` tool which operates on a bids data structure and takes subject and session names as input. This is a work in progress.
+
+See [UNITY QA description](examples/unity_QA/)
+
+## Container
+
+Recipes for building a Docker container is provided in the Dockerfile. Use the `build_docker.sh` to build the docker container, the installation of `torch` is different depending on your platform.
