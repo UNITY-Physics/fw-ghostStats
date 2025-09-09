@@ -1,4 +1,4 @@
-name: Curate phantom data
+name: Run GhostStats
 
 on:
   schedule:
