@@ -18,15 +18,15 @@ def is_ghost_stats_analysis(analysis):
         # Check gear name - must be exactly 'ghoststats' gear
         if analysis.label:
             label = analysis.label.lower()
-            if "ghost/0.0.5" in label:
+            if "ghoststats" in label:
                 return True
             
         return False
 
 def main (fw):   
     
-    gear =  fw.lookup('gears/ghost')
-    analysis_tag = 'ghost'
+    gear =  fw.lookup('gears/ghoststats')
+    analysis_tag = 'ghoststats'
     # Initialize gear_job_list
     job_list = list()
 
