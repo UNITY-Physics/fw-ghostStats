@@ -22,7 +22,7 @@
     },
     "gear-builder": {
       "category": "analysis",
-      "image": "flywheel/ghoststats:0.0.1c"
+      "image": "flywheel/ghoststats:0.0.2c"
     },
     "kcl-app-binary": "app/main.py",
     "kcl-app-modalities": [
@@ -67,5 +67,5 @@
   "name": "ghoststats",
   "source": "https://github.com/UNITY-Physics/fw-ghostStats",
   "url": "https://github.com/UNITY-Physics/fw-ghostStats",
-  "version": "0.0.1c"
+  "version": "0.0.2c"
 }

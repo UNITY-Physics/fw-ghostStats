@@ -207,9 +207,11 @@ def download_session(container, config):
 
 def find_latest_analysis(analysis_list):
     correct_version = []
+    
     for analysis in analysis_list:
         try:
-            if analysis.info['gear'] == 'ghost':
+            if analysis.gear_info.name == 'ghost':
+                print("Found ghost analysis")
                 correct_version.append(analysis)
         except:
             continue
@@ -219,6 +221,7 @@ def find_latest_analysis(analysis_list):
     latest_analysis = None
     try:
         latest_analysis = correct_version[ time_stamps.index(max(time_stamps)) ]    
+        print(f"Using analysis {latest_analysis.label}")
     except:
         print(f"Found no ghost analysis")
 
