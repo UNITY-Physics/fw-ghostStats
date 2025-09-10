@@ -17,8 +17,7 @@ def is_ghost_stats_analysis(analysis):
         """
         # Check gear name - must be exactly 'ghoststats' gear
         if analysis.label:
-            label = analysis.label.lower()
-            if "ghoststats" in label:
+            if analysis.gear_info.name == 'ghoststats':
                 return True
             
         return False
@@ -39,7 +38,7 @@ def main (fw):
             # Check if a ghost analysis already exists for this session
             ghost_analyses = [analysis for analysis in session.analyses if is_ghost_stats_analysis(analysis)]
             if ghost_analyses:
-                print(f"Skipping session {session.label} - ghost analysis already exists.")
+                print(f"Skipping session {session.label} - ghoststats analysis already exists.")
                 continue
             try:
                 # The destination for this analysis will be on the session
