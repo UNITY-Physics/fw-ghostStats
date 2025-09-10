@@ -50,7 +50,7 @@ def main (fw):
                     analysis_label=analysis_label,
                     
                     destination=dest,
-                    tags=["analysis", "ghost","gpu"],
+                    tags=["analysis", "ghoststats"],
                     config={
                     
                         }
