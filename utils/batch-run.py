@@ -37,7 +37,7 @@ def main (fw):
         for session in subject.sessions():
             session = session.reload()
             # Check if a ghost analysis already exists for this session
-            ghost_analyses = [analysis for analysis in session.analyses if is_ghost_analysis(analysis)]
+            ghost_analyses = [analysis for analysis in session.analyses if is_ghost_stats_analysis(analysis)]
             if ghost_analyses:
                 print(f"Skipping session {session.label} - ghost analysis already exists.")
                 continue
