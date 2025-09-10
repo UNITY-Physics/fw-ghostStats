@@ -16,11 +16,15 @@ def is_ghost_stats_analysis(analysis):
         Check if an analysis is a ghost analysis by checking gear name or analysis label.
         """
         # Check gear name - must be exactly 'ghoststats' gear
-        if analysis.label:
-            if analysis.gear_info.name == 'ghoststats':
-                return True
+        if "ghoststats/" in analysis.label:
+            # if analysis.gear_info is not None and analysis.gear_info.name == 'ghoststats':
+                print("Output files for this analysis ", len(analysis.files), analysis.label)
+                #Ensure analyses has output files
+                if analysis.files:
+                    return True
             
         return False
+
 
 def main (fw):   
     
