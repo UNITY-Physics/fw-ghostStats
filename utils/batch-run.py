@@ -11,6 +11,26 @@ import logging
 
 log = logging.getLogger(__name__)
 
+def is_failed(asys,gearname):
+    asys=asys.reload()
+    return (
+        asys.gear_info is not None
+        and gearname in asys.gear_info.get('name')
+        and asys.job is not None
+        and asys.job.get('state') == 'failed'
+        
+    )
+def is_ghost_analysis(analysis):
+    """
+    Check if an analysis is a ghost analysis by checking gear name or analysis label.
+    """
+    # Check gear name - must be exactly 'ghost' gear
+    if analysis.gear_info is not None and analysis.gear_info.name == 'ghost' and analysis.job.get('state') == 'complete':
+        return True
+
+    return False
+
+
 def is_ghost_stats_analysis(analysis):
         """
         Check if an analysis is a ghost analysis by checking gear name or analysis label.
@@ -22,6 +42,8 @@ def is_ghost_stats_analysis(analysis):
                 #Ensure analyses has output files
                 if analysis.files:
                     return True
+                
+        #Else if analyses have been run but at least 3 have failed
             
         return False
 
@@ -40,10 +62,20 @@ def main (fw):
         for session in subject.sessions():
             session = session.reload()
             # Check if a ghost analysis already exists for this session
-            ghost_analyses = [analysis for analysis in session.analyses if is_ghost_stats_analysis(analysis)]
-            if ghost_analyses:
-                print(f"Skipping session {session.label} - ghoststats analysis already exists.")
+            ghost_analyses = [analysis for analysis in session.analyses if is_ghost_analysis(analysis)]
+            if not ghost_analyses:
+                print(f"Skipping session {session.label} - ghost analysis does not exist.")
                 continue
+                 
+            ghost_stats_analyses = [analysis for analysis in session.analyses if is_ghost_stats_analysis(analysis)]
+            if ghost_stats_analyses:
+                failed_asys = [asys for asys in ghost_stats_analyses if is_failed(asys, gear.name)]
+                if len(failed_asys) > 2: #If there are more than 2 failed analyses, likely something is wrong and no need to keep trying and failing, so we will skip to save resources
+                    print(f"Skipping session {session.label} - ghoststats analysis has failed more than 2 times.")
+                    continue
+                else:
+                    print(f"Skipping session {session.label} - ghoststats analysis already exists.")
+                    continue
             try:
                 # The destination for this analysis will be on the session
                 dest = session
