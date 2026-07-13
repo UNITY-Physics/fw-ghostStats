@@ -15,9 +15,9 @@ def is_failed(asys,gearname):
     asys=asys.reload()
     return (
         asys.gear_info is not None
-        and gearname in asys.gear_info.get('name')
+        and gearname in asys.gear_info.get('name','None')
         and asys.job is not None
-        and asys.job.get('state') == 'failed'
+        and asys.job.get('state','None') == 'failed'
         
     )
 def is_ghost_analysis(analysis):
@@ -25,7 +25,7 @@ def is_ghost_analysis(analysis):
     Check if an analysis is a ghost analysis by checking gear name or analysis label.
     """
     # Check gear name - must be exactly 'ghost' gear
-    if analysis.gear_info is not None and analysis.gear_info.name == 'ghost' and analysis.job.get('state') == 'complete':
+    if analysis.gear_info is not None and analysis.gear_info.name == 'ghost' and analysis.job.get('state','None') == 'complete':
         return True
 
     return False
@@ -62,12 +62,15 @@ def main (fw):
         for session in subject.sessions():
             session = session.reload()
             # Check if a ghost analysis already exists for this session
-            ghost_analyses = [analysis for analysis in session.analyses if is_ghost_analysis(analysis)]
+            ghost_analyses = fw.analyses.find(f"parents.session={session.id},gear_info.name=ghost")
             if not ghost_analyses:
-                print(f"Skipping session {session.label} - ghost analysis does not exist.")
-                continue
+                #Make sure there is at least one complete ghost analysis before running ghoststats
+                complete_asys = [asys for asys in ghost_analyses if asys.job.get('state') == 'complete']
+                if not complete_asys:
+                    print(f"Skipping session {session.label} - ghost analysis does not exist.")
+                    continue
                  
-            ghost_stats_analyses = [analysis for analysis in session.analyses if is_ghost_stats_analysis(analysis)]
+            ghost_stats_analyses = fw.analyses.find(f"parents.session={session.id},gear_info.name={analysis_tag}")
             if ghost_stats_analyses:
                 failed_asys = [asys for asys in ghost_stats_analyses if is_failed(asys, gear.name)]
                 if len(failed_asys) > 2: #If there are more than 2 failed analyses, likely something is wrong and no need to keep trying and failing, so we will skip to save resources
