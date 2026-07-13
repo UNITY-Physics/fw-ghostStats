@@ -65,14 +65,14 @@ def main (fw):
             ghost_analyses = fw.analyses.find(f"parents.session={session.id},gear_info.name=ghost")
             if not ghost_analyses:
                 #Make sure there is at least one complete ghost analysis before running ghoststats
-                complete_asys = [asys for asys in ghost_analyses if asys.job.get('state') == 'complete']
+                complete_asys = [asys for asys in ghost_analyses if asys.reload().job.get('state') == 'complete']
                 if not complete_asys:
                     print(f"Skipping session {session.label} - ghost analysis does not exist.")
                     continue
                  
             ghost_stats_analyses = fw.analyses.find(f"parents.session={session.id},gear_info.name={analysis_tag}")
             if ghost_stats_analyses:
-                failed_asys = [asys for asys in ghost_stats_analyses if asys.job.get('state') == 'failed']
+                failed_asys = [asys for asys in ghost_stats_analyses if asys.reload().job.get('state') == 'failed']
                 if len(failed_asys) > 2: #If there are more than 2 failed analyses, likely something is wrong and no need to keep trying and failing, so we will skip to save resources
                     print(f"Skipping session {session.label} - ghoststats analysis has failed more than 2 times.")
                     continue
