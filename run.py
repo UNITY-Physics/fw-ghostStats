@@ -306,7 +306,7 @@ def get_dataset_ids(gear_context: GearToolkitContext, container):
 
 
 def make_session_label(ses) -> str:
-    return ses.label.split()[0].replace("-",'')
+    return re.sub(r'[^A-Za-z0-9]', '', ses.label.split()[0])
 
 
 def make_subject_label(sub) -> str:
